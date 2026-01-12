@@ -2,216 +2,360 @@
 <html lang="hr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GeoTracker - GIS Projekt</title>
+    <title>DJ Tour Manager Pro</title>
     
-    <!-- Bootstrap CSS (Dizajn) -->
+    <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Leaflet CSS (Mapa) -->
+    
+    <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
+    <!-- MarkerCluster CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
+
     <style>
-        #map { height: 600px; width: 100%; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        .stat-card { transition: transform 0.2s; }
-        .stat-card:hover { transform: translateY(-5px); }
+        body { height: 100vh; display: flex; flex-direction: column; }
+        .main-container { flex: 1; display: flex; overflow: hidden; }
+        .sidebar { width: 350px; background: #f8f9fa; border-right: 1px solid #ccc; padding: 15px; overflow-y: auto; z-index: 1000; }
+        #map { flex: 1; }
+        
+        .club-label {
+            background: rgba(255, 255, 255, 0.9); border: 1px solid #333; border-radius: 3px;
+            padding: 0 4px; font-size: 11px; font-weight: bold; white-space: nowrap;
+        }
+        
+        .nav-tabs .nav-link.active { font-weight: bold; border-bottom: 3px solid #0d6efd; color: #0d6efd; }
+        .nav-link { color: #555; }
+
+        /* Stil za Toggle Switch */
+        .form-check-input:checked { background-color: #0d6efd; border-color: #0d6efd; }
     </style>
 </head>
-<body class="bg-light">
+<body>
 
-<nav class="navbar navbar-dark bg-dark mb-4">
-    <div class="container">
-        <span class="navbar-brand mb-0 h1">🌍 GeoTracker (PostGIS + Flask)</span>
+<!-- Navbar -->
+<nav class="navbar navbar-light bg-white border-bottom px-3 py-1 shadow-sm justify-content-between">
+    <ul class="nav nav-tabs border-0" id="myTab" role="tablist">
+        <li class="nav-item">
+            <button class="nav-link active border-0" id="tour-tab" onclick="switchMode('tour')">📅 Pregled Turneje</button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link border-0" id="add-tab" onclick="switchMode('add')">➕ Baza & Unos</button>
+        </li>
+    </ul>
+    
+    <!-- TOGGLE ZA ŽUPANIJE -->
+    <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" id="regionToggle" checked onchange="toggleRegions()">
+        <label class="form-check-label small fw-bold text-muted" for="regionToggle">Granice Županija</label>
     </div>
 </nav>
 
-<div class="container">
-    <div class="row">
-        <!-- Lijevi stupac: MAPA -->
-        <div class="col-md-8">
-            <div class="card p-3 mb-4">
-                <h4>🗺️ Interaktivna karta</h4>
-                <p class="text-muted small">Klikni na mapu za dodavanje nove lokacije!</p>
-                <div id="map"></div>
-            </div>
-        </div>
-
-        <!-- Desni stupac: STATISTIKA -->
-        <div class="col-md-4">
-            <div class="card p-3 mb-4">
-                <h4>📊 Statistika</h4>
-                <canvas id="myChart"></canvas>
+<div class="main-container">
+    <!-- SIDEBAR -->
+    <div class="sidebar shadow">
+        
+        <!-- POGLED 1: TURNEJA -->
+        <div id="tour-view">
+            <h5 class="mb-3 fw-bold text-primary">Analiza Turneje</h5>
+            <label class="small text-muted">Odaberi mjesec:</label>
+            <select id="monthSelect" class="form-select mb-3 shadow-sm"></select>
+            
+            <div class="card p-3 mb-3 bg-white border-primary border-start border-4">
+                <div class="d-flex justify-content-between"><span>Broj gaža:</span> <strong id="sCount">0</strong></div>
+                <hr class="my-2">
+                <div class="d-flex justify-content-between text-success"><span>Profit:</span> <strong id="sProfit">0 €</strong></div>
             </div>
             
-            <div class="card p-3">
-                <h5>Legenda kategorija</h5>
-                <ul class="list-group list-group-flush" id="legendList">
-                    <!-- Ovdje će JS ubaciti podatke -->
-                </ul>
+            <div class="list-group list-group-flush small" id="gigList">
+                <!-- Ovdje ćemo ispisati listu gaža -->
             </div>
         </div>
-    </div>
-</div>
 
-<!-- MODALNI PROZOR ZA UNOS (Iskoči kad klikneš na mapu) -->
-<div class="modal fade" id="addModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Nova Lokacija</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <form id="locationForm">
-                    <input type="hidden" id="inputLat">
-                    <input type="hidden" id="inputLon">
-                    
-                    <div class="mb-3">
-                        <label>Naziv</label>
-                        <input type="text" class="form-control" id="inputNaziv" required>
+        <!-- POGLED 2: UNOS -->
+        <div id="add-view" style="display: none;">
+            <h5 class="mb-3 fw-bold text-success">Baza & Unos</h5>
+            
+            <form id="addForm" class="card p-3 shadow-sm border-0">
+                <input type="hidden" id="inKlubId"> 
+                
+                <h6 class="border-bottom pb-2 mb-3">📍 Podaci o Klubu</h6>
+                
+                <div class="mb-2">
+                    <label class="small fw-bold">Naziv Kluba</label>
+                    <input type="text" id="inNaziv" class="form-control form-control-sm" required>
+                </div>
+                <div class="mb-2">
+                    <label class="small">Adresa / Grad</label>
+                    <input type="text" id="inAdresa" class="form-control form-control-sm">
+                </div>
+                
+                <div class="row g-2 mb-2">
+                    <div class="col-6"><input type="text" id="inLat" class="form-control form-control-sm bg-light" readonly></div>
+                    <div class="col-6"><input type="text" id="inLon" class="form-control form-control-sm bg-light" readonly></div>
+                </div>
+
+                <h6 class="border-bottom pb-2 mt-3 mb-3">💰 Podaci o Gaži</h6>
+                
+                <div class="mb-2">
+                    <label class="small fw-bold">Datum Nastupa</label>
+                    <input type="date" id="inDatum" class="form-control form-control-sm" required>
+                </div>
+                
+                <div class="row g-2 mb-2">
+                    <div class="col-6">
+                        <label class="small">Honorar (€)</label>
+                        <input type="number" id="inHonorar" class="form-control form-control-sm" value="0">
                     </div>
-                    <div class="mb-3">
-                        <label>Opis</label>
-                        <textarea class="form-control" id="inputOpis"></textarea>
+                    <div class="col-6">
+                        <label class="small">Trošak (€)</label>
+                        <input type="number" id="inTrosak" class="form-control form-control-sm" value="0">
                     </div>
-                    <div class="mb-3">
-                        <label>Kategorija</label>
-                        <select class="form-select" id="inputKategorija">
-                            <option value="1">Priroda</option>
-                            <option value="2">Kultura</option>
-                            <option value="3">Hrana</option>
-                            <option value="4">Ostalo</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label>Ocjena (1-5)</label>
-                        <input type="number" class="form-control" id="inputOcjena" min="1" max="5" value="5">
-                    </div>
-                    <button type="submit" class="btn btn-primary w-100">Spremi Lokaciju</button>
-                </form>
-            </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="small">Tip Događaja</label>
+                    <select id="inKat" class="form-select form-select-sm">
+                        <option value="1">Klub</option>
+                        <option value="2">Festival</option>
+                        <option value="3">Bar</option>
+                        <option value="4">Vjenčanje</option>
+                    </select>
+                </div>
+                
+                <button type="submit" class="btn btn-success w-100 fw-bold">💾 SPREMI</button>
+                <button type="button" onclick="resetForm()" class="btn btn-outline-secondary w-100 mt-2 btn-sm">Očisti Formu</button>
+            </form>
         </div>
     </div>
+
+    <!-- MAPA -->
+    <div id="map"></div>
 </div>
 
 <!-- SKRIPTE -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
 
 <script>
-    // 1. INICIJALIZACIJA MAPE (Centar: Zagreb)
-    var map = L.map('map').setView([45.81, 15.97], 12);
+    // 1. INICIJALIZACIJA MAPE
+    var map = L.map('map').setView([44.5, 16.0], 7); // Centar HR
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    // Dodaj OpenStreetMap podlogu
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors'
+    // Layeri
+    var regionLayer = L.layerGroup().addTo(map); // Županije
+    var tourLayer = L.layerGroup().addTo(map);   // Gaže (Markeri za mjesec)
+    var routeLayer = L.layerGroup().addTo(map);  // Ruta (Linija)
+    
+    // Cluster Grupa za Unos
+    var clubCluster = L.markerClusterGroup({
+        showCoverageOnHover: false, zoomToBoundsOnClick: true, spiderfyOnMaxZoom: true
     }).addTo(map);
 
-    // Varijabla za Chart instancu
-    let statsChart = null;
+    var tempMarker = null;
+    var currentMode = 'tour'; 
 
-    // 2. FUNKCIJA: Učitaj lokacije s Backenda
-    function loadLocations() {
-        fetch('/api/locations')
-            .then(response => response.json())
-            .then(data => {
-                // Očisti stare markere (ovo je pojednostavljeno, inače bi ih spremali u array)
-                // Ovdje samo dodajemo nove preko postojećih radi jednostavnosti
-                
-                L.geoJSON(data, {
-                    onEachFeature: function (feature, layer) {
-                        layer.bindPopup(`
-                            <strong>${feature.properties.naziv}</strong><br>
-                            <span class="badge bg-secondary">${feature.properties.kategorija}</span><br>
-                            ${feature.properties.opis}
-                        `);
-                    }
-                }).addTo(map);
-            });
+    // POKRENI SVE
+    loadRegions(); 
+    loadMonths();
+
+    // 2. FUNKCIJA ZA ŽUPANIJE (TOGGLE)
+    function loadRegions() {
+        fetch('/api/regions').then(r => r.json()).then(data => {
+            L.geoJSON(data, {
+                style: { 
+                    color: '#3388ff', weight: 1, fillColor: '#3388ff', fillOpacity: 0.1 
+                },
+                onEachFeature: function(feature, layer) {
+                    layer.bindTooltip(feature.properties.naziv, {
+                        permanent: false, direction: "center", className: "text-primary fw-bold bg-white border-0"
+                    });
+                }
+            }).addTo(regionLayer);
+        });
     }
 
-    // 3. FUNKCIJA: Učitaj statistiku za Graf
-    function loadStats() {
-        fetch('/api/stats')
-            .then(res => res.json())
-            .then(data => {
-                const labels = data.map(d => d.kategorija);
-                const counts = data.map(d => d.broj);
-                
-                const ctx = document.getElementById('myChart').getContext('2d');
-                
-                // Ako graf već postoji, uništi ga prije crtanja novog
-                if (statsChart) statsChart.destroy();
-
-                statsChart = new Chart(ctx, {
-                    type: 'doughnut', // Može biti 'bar', 'pie', 'line'
-                    data: {
-                        labels: labels,
-                        datasets: [{
-                            label: 'Broj lokacija',
-                            data: counts,
-                            backgroundColor: ['#4CAF50', '#2196F3', '#FF9800', '#9E9E9E']
-                        }]
-                    }
-                });
-
-                // Popuni legendu tekstom
-                const list = document.getElementById('legendList');
-                list.innerHTML = '';
-                data.forEach(d => {
-                    list.innerHTML += `<li class="list-group-item d-flex justify-content-between align-items-center">
-                        ${d.kategorija}
-                        <span class="badge bg-primary rounded-pill">${d.broj}</span>
-                    </li>`;
-                });
-            });
+    function toggleRegions() {
+        if(document.getElementById('regionToggle').checked) {
+            map.addLayer(regionLayer);
+        } else {
+            map.removeLayer(regionLayer);
+        }
     }
 
-    // 4. INTERAKCIJA: Klik na mapu otvara Modal
-    const addModal = new bootstrap.Modal(document.getElementById('addModal'));
-    
+    // 3. PROMJENA MODA RADA
+    function switchMode(mode) {
+        currentMode = mode;
+        
+        document.querySelectorAll('.nav-link').forEach(b => b.classList.remove('active'));
+        document.getElementById(mode + '-tab').classList.add('active');
+        
+        document.getElementById('tour-view').style.display = mode === 'tour' ? 'block' : 'none';
+        document.getElementById('add-view').style.display = mode === 'add' ? 'block' : 'none';
+
+        // Čišćenje kod promjene tabova
+        tourLayer.clearLayers();
+        routeLayer.clearLayers();
+        clubCluster.clearLayers();
+        if(tempMarker) map.removeLayer(tempMarker);
+
+        if(mode === 'tour') {
+            loadTourData();
+        } else {
+            loadAllClubs(); 
+        }
+    }
+
+    // 4. MOD: TURNEJA
+    function loadTourData() {
+        const m = document.getElementById('monthSelect').value;
+        if(!m) return;
+
+        // !!! FIX: OVDJE BRIŠEMO STARE LAYERE PRIJE DODAVANJA NOVIH !!!
+        tourLayer.clearLayers();
+        routeLayer.clearLayers();
+
+        // Statistika
+        fetch(`/api/stats?month=${m}`).then(r=>r.json()).then(s => {
+            document.getElementById('sCount').innerText = s.broj;
+            document.getElementById('sProfit').innerText = s.profit.toFixed(2) + ' €';
+        });
+
+        // Gaže i Lista
+        fetch(`/api/gigs?month=${m}`).then(r=>r.json()).then(data => {
+            const list = document.getElementById('gigList');
+            list.innerHTML = ''; // Očisti listu
+
+            L.geoJSON(data, {
+                pointToLayer: (f, ll) => L.circleMarker(ll, {
+                    radius: 8, fillColor: f.properties.boja, color: '#fff', weight: 2, fillOpacity: 1
+                }),
+                onEachFeature: (f, l) => {
+                    const popup = `<strong>${f.properties.naziv}</strong><br>${f.properties.datum}<br>${f.properties.honorar} €`;
+                    l.bindPopup(popup);
+
+                    // Dodaj u listu lijevo
+                    list.innerHTML += `
+                        <a href="#" class="list-group-item list-group-item-action py-2" onclick="zoomTo(${l.getLatLng().lat}, ${l.getLatLng().lng})">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h6 class="mb-1 fw-bold" style="color:${f.properties.boja}">${f.properties.naziv}</h6>
+                                <small>${f.properties.datum}</small>
+                            </div>
+                            <small class="text-muted">Profit: ${(f.properties.honorar).toFixed(0)} €</small>
+                        </a>`;
+                }
+            }).addTo(tourLayer);
+        });
+
+        // Ruta
+        fetch(`/api/route?month=${m}`).then(r=>r.json()).then(d => {
+            if(d.geometry) {
+                L.geoJSON(d, {style: {color:'black', dashArray:'5,10', weight: 3}}).addTo(routeLayer);
+                
+                // Automatski zoom na rutu
+                const bounds = L.geoJSON(d).getBounds();
+                if(bounds.isValid()) map.fitBounds(bounds, {padding: [50, 50]});
+            }
+        });
+    }
+
+    function zoomTo(lat, lon) {
+        map.setView([lat, lon], 12);
+    }
+
+    // 5. MOD: UNOS (Klubovi)
+    function loadAllClubs() {
+        fetch('/api/clubs').then(r=>r.json()).then(data => {
+            const geoJsonLayer = L.geoJSON(data, {
+                pointToLayer: (f, latlng) => {
+                    return L.circleMarker(latlng, {
+                        radius: 7, fillColor: '#6c757d', color: '#343a40', weight: 1, fillOpacity: 0.8
+                    });
+                },
+                onEachFeature: (f, layer) => {
+                    layer.bindTooltip(f.properties.naziv, {
+                        permanent: true, direction: 'top', offset: [0, -10], className: 'club-label'
+                    });
+                    layer.on('click', function(e) {
+                        L.DomEvent.stop(e); 
+                        fillForm(f.properties, e.latlng);
+                    });
+                }
+            });
+            clubCluster.addLayer(geoJsonLayer);
+        });
+    }
+
     map.on('click', function(e) {
-        document.getElementById('inputLat').value = e.latlng.lat;
-        document.getElementById('inputLon').value = e.latlng.lng;
-        addModal.show();
+        if(currentMode !== 'add') return;
+        fillForm(null, e.latlng);
     });
 
-    // 5. SLANJE FORME (Spremanje u bazu)
-    document.getElementById('locationForm').addEventListener('submit', function(e) {
+    function fillForm(props, latlng) {
+        if(tempMarker) map.removeLayer(tempMarker);
+        tempMarker = L.marker(latlng).addTo(map);
+
+        document.getElementById('inLat').value = latlng.lat.toFixed(5);
+        document.getElementById('inLon').value = latlng.lng.toFixed(5);
+
+        if(props) {
+            document.getElementById('inKlubId').value = props.id;
+            document.getElementById('inNaziv').value = props.naziv;
+            document.getElementById('inAdresa').value = props.adresa || '';
+            document.getElementById('inNaziv').readOnly = true; 
+            document.getElementById('inAdresa').readOnly = true; 
+        } else {
+            resetForm();
+            document.getElementById('inLat').value = latlng.lat.toFixed(5);
+            document.getElementById('inLon').value = latlng.lng.toFixed(5);
+        }
+    }
+
+    function resetForm() {
+        document.getElementById('addForm').reset();
+        document.getElementById('inKlubId').value = "";
+        document.getElementById('inNaziv').readOnly = false;
+        document.getElementById('inAdresa').readOnly = false;
+        if(tempMarker) map.removeLayer(tempMarker);
+    }
+
+    // 6. OSTALO
+    function loadMonths() {
+        fetch('/api/months').then(r=>r.json()).then(d => {
+            const sel = document.getElementById('monthSelect');
+            sel.innerHTML = '';
+            d.forEach(m => sel.add(new Option(m.naziv, m.id)));
+            if(currentMode === 'tour' && d.length > 0) loadTourData();
+        });
+    }
+    document.getElementById('monthSelect').addEventListener('change', loadTourData);
+
+    // 7. SPREMANJE
+    document.getElementById('addForm').addEventListener('submit', function(e) {
         e.preventDefault();
-        
         const data = {
-            naziv: document.getElementById('inputNaziv').value,
-            opis: document.getElementById('inputOpis').value,
-            kategorija_id: document.getElementById('inputKategorija').value,
-            ocjena: document.getElementById('inputOcjena').value,
-            lat: document.getElementById('inputLat').value,
-            lon: document.getElementById('inputLon').value
+            klub_id: document.getElementById('inKlubId').value,
+            naziv: document.getElementById('inNaziv').value,
+            adresa: document.getElementById('inAdresa').value,
+            lat: document.getElementById('inLat').value,
+            lon: document.getElementById('inLon').value,
+            datum: document.getElementById('inDatum').value,
+            honorar: document.getElementById('inHonorar').value,
+            trosak: document.getElementById('inTrosak').value,
+            kat: document.getElementById('inKat').value
         };
 
         fetch('/api/add', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(data)
-        })
-        .then(res => res.json())
-        .then(response => {
-            addModal.hide();
-            document.getElementById('locationForm').reset();
-            alert("Lokacija spremljena!");
-            
-            // Osvježi mapu i graf
-            loadLocations();
-            loadStats();
-            // Opcionalno: reload stranice da se sve očisti
-            location.reload(); 
-        })
-        .catch(err => alert("Greška: " + err));
+            method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data)
+        }).then(r=>r.json()).then(res => {
+            alert('Uspješno spremljeno!');
+            resetForm();
+            loadMonths(); 
+            if(currentMode === 'add') loadAllClubs(); 
+        });
     });
-
-    // Pokreni sve odmah pri učitavanju
-    loadLocations();
-    loadStats();
 </script>
 
 </body>
