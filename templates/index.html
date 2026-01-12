@@ -10,14 +10,14 @@
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
-    <!-- MarkerCluster CSS -->
+    <!-- MarkerCluster CSS (Za grupiranje točaka) -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
 
     <style>
         body { height: 100vh; display: flex; flex-direction: column; }
         .main-container { flex: 1; display: flex; overflow: hidden; }
-        .sidebar { width: 350px; background: #f8f9fa; border-right: 1px solid #ccc; padding: 15px; overflow-y: auto; z-index: 1000; }
+        .sidebar { width: 380px; background: #f8f9fa; border-right: 1px solid #ccc; padding: 15px; overflow-y: auto; z-index: 1000; }
         #map { flex: 1; }
         
         .club-label {
@@ -28,27 +28,33 @@
         .nav-tabs .nav-link.active { font-weight: bold; border-bottom: 3px solid #0d6efd; color: #0d6efd; }
         .nav-link { color: #555; }
 
-        /* Stil za Toggle Switch */
         .form-check-input:checked { background-color: #0d6efd; border-color: #0d6efd; }
     </style>
 </head>
 <body>
 
 <!-- Navbar -->
-<nav class="navbar navbar-light bg-white border-bottom px-3 py-1 shadow-sm justify-content-between">
+<nav class="navbar navbar-light bg-white border-bottom px-3 py-2 shadow-sm d-flex justify-content-between align-items-center">
+    <!-- Lijevo: Tabovi -->
     <ul class="nav nav-tabs border-0" id="myTab" role="tablist">
         <li class="nav-item">
-            <button class="nav-link active border-0" id="tour-tab" onclick="switchMode('tour')">📅 Pregled Turneje</button>
+            <button class="nav-link active border-0" id="tour-tab" onclick="switchMode('tour')">📅 Turneja</button>
         </li>
         <li class="nav-item">
-            <button class="nav-link border-0" id="add-tab" onclick="switchMode('add')">➕ Baza & Unos</button>
+            <button class="nav-link border-0" id="add-tab" onclick="switchMode('add')">➕ Unos</button>
         </li>
     </ul>
     
-    <!-- TOGGLE ZA ŽUPANIJE -->
-    <div class="form-check form-switch">
+    <!-- Sredina: Novi Gumbi -->
+    <div>
+        <button class="btn btn-outline-warning btn-sm fw-bold me-2" onclick="showTopList()">🏆 Top Klubovi</button>
+        <button class="btn btn-outline-danger btn-sm fw-bold" onclick="lockMonth()">🔒 Zaključaj Mjesec</button>
+    </div>
+
+    <!-- Desno: Toggle -->
+    <div class="form-check form-switch ms-3">
         <input class="form-check-input" type="checkbox" id="regionToggle" checked onchange="toggleRegions()">
-        <label class="form-check-label small fw-bold text-muted" for="regionToggle">Granice Županija</label>
+        <label class="form-check-label small fw-bold text-muted" for="regionToggle">Županije</label>
     </div>
 </nav>
 
@@ -59,73 +65,63 @@
         <!-- POGLED 1: TURNEJA -->
         <div id="tour-view">
             <h5 class="mb-3 fw-bold text-primary">Analiza Turneje</h5>
-            <label class="small text-muted">Odaberi mjesec:</label>
             <select id="monthSelect" class="form-select mb-3 shadow-sm"></select>
             
             <div class="card p-3 mb-3 bg-white border-primary border-start border-4">
                 <div class="d-flex justify-content-between"><span>Broj gaža:</span> <strong id="sCount">0</strong></div>
+                <div class="d-flex justify-content-between"><span>Profit:</span> <strong id="sProfit" class="text-success">0 €</strong></div>
                 <hr class="my-2">
-                <div class="d-flex justify-content-between text-success"><span>Profit:</span> <strong id="sProfit">0 €</strong></div>
+                <div class="d-flex justify-content-between"><span>Ukupni put:</span> <strong id="sKm">0 km</strong></div>
             </div>
             
+            <h6 class="border-bottom pb-2 mb-2">Lista nastupa</h6>
             <div class="list-group list-group-flush small" id="gigList">
-                <!-- Ovdje ćemo ispisati listu gaža -->
+                <!-- Lista se puni javascriptom -->
             </div>
         </div>
 
         <!-- POGLED 2: UNOS -->
         <div id="add-view" style="display: none;">
             <h5 class="mb-3 fw-bold text-success">Baza & Unos</h5>
+            <div class="alert alert-info small py-2 mb-3">
+                Klikni na <strong>sivi marker</strong> (postojeći) ili <strong>prazno</strong> (novi).
+            </div>
             
             <form id="addForm" class="card p-3 shadow-sm border-0">
                 <input type="hidden" id="inKlubId"> 
                 
-                <h6 class="border-bottom pb-2 mb-3">📍 Podaci o Klubu</h6>
-                
+                <h6 class="border-bottom pb-2 mb-3">📍 Klub</h6>
                 <div class="mb-2">
-                    <label class="small fw-bold">Naziv Kluba</label>
+                    <label class="small fw-bold">Naziv</label>
                     <input type="text" id="inNaziv" class="form-control form-control-sm" required>
                 </div>
                 <div class="mb-2">
-                    <label class="small">Adresa / Grad</label>
+                    <label class="small">Adresa</label>
                     <input type="text" id="inAdresa" class="form-control form-control-sm">
                 </div>
-                
                 <div class="row g-2 mb-2">
                     <div class="col-6"><input type="text" id="inLat" class="form-control form-control-sm bg-light" readonly></div>
                     <div class="col-6"><input type="text" id="inLon" class="form-control form-control-sm bg-light" readonly></div>
                 </div>
 
-                <h6 class="border-bottom pb-2 mt-3 mb-3">💰 Podaci o Gaži</h6>
-                
+                <h6 class="border-bottom pb-2 mt-3 mb-3">💰 Gaža</h6>
                 <div class="mb-2">
-                    <label class="small fw-bold">Datum Nastupa</label>
+                    <label class="small fw-bold">Datum</label>
                     <input type="date" id="inDatum" class="form-control form-control-sm" required>
                 </div>
-                
                 <div class="row g-2 mb-2">
-                    <div class="col-6">
-                        <label class="small">Honorar (€)</label>
-                        <input type="number" id="inHonorar" class="form-control form-control-sm" value="0">
-                    </div>
-                    <div class="col-6">
-                        <label class="small">Trošak (€)</label>
-                        <input type="number" id="inTrosak" class="form-control form-control-sm" value="0">
-                    </div>
+                    <div class="col-6"><label class="small">Honorar</label><input type="number" id="inHonorar" class="form-control form-control-sm" value="0"></div>
+                    <div class="col-6"><label class="small">Trošak</label><input type="number" id="inTrosak" class="form-control form-control-sm" value="0"></div>
                 </div>
-                
                 <div class="mb-3">
-                    <label class="small">Tip Događaja</label>
+                    <label class="small">Tip</label>
                     <select id="inKat" class="form-select form-select-sm">
-                        <option value="1">Klub</option>
-                        <option value="2">Festival</option>
-                        <option value="3">Bar</option>
-                        <option value="4">Vjenčanje</option>
+                        <option value="1">Klub</option><option value="2">Festival</option><option value="3">Bar</option><option value="4">Vjenčanje</option>
                     </select>
                 </div>
                 
                 <button type="submit" class="btn btn-success w-100 fw-bold">💾 SPREMI</button>
-                <button type="button" onclick="resetForm()" class="btn btn-outline-secondary w-100 mt-2 btn-sm">Očisti Formu</button>
+                <button type="button" onclick="resetForm()" class="btn btn-outline-secondary w-100 mt-2 btn-sm">Očisti</button>
             </form>
         </div>
     </div>
@@ -134,229 +130,245 @@
     <div id="map"></div>
 </div>
 
+<!-- MODAL: EDIT GAŽE -->
+<div class="modal fade" id="editModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header"><h6 class="modal-title">✏️ Uredi Gažu</h6><button class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <input type="hidden" id="editId">
+                <div class="mb-2"><label class="small fw-bold">Novi Honorar</label><input type="number" id="editHonorar" class="form-control"></div>
+                <div class="mb-2"><label class="small fw-bold">Novi Trošak</label><input type="number" id="editTrosak" class="form-control"></div>
+                <button onclick="saveEdit()" class="btn btn-primary w-100">Ažuriraj</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: TOP LISTA -->
+<div class="modal fade" id="topModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">🏆 Top 5 Klubova</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <ul class="list-group list-group-flush" id="topList"></ul>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- SKRIPTE -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
 
 <script>
-    // 1. INICIJALIZACIJA MAPE
-    var map = L.map('map').setView([44.5, 16.0], 7); // Centar HR
+    // 1. INICIJALIZACIJA
+    var map = L.map('map').setView([44.5, 16.0], 7);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
     // Layeri
-    var regionLayer = L.layerGroup().addTo(map); // Županije
-    var tourLayer = L.layerGroup().addTo(map);   // Gaže (Markeri za mjesec)
-    var routeLayer = L.layerGroup().addTo(map);  // Ruta (Linija)
-    
-    // Cluster Grupa za Unos
-    var clubCluster = L.markerClusterGroup({
-        showCoverageOnHover: false, zoomToBoundsOnClick: true, spiderfyOnMaxZoom: true
-    }).addTo(map);
+    var regionLayer = L.layerGroup().addTo(map);
+    var tourLayer = L.layerGroup().addTo(map);
+    var routeLayer = L.layerGroup().addTo(map);
+    var clubCluster = L.markerClusterGroup({ showCoverageOnHover: false, zoomToBoundsOnClick: true, spiderfyOnMaxZoom: true }).addTo(map);
 
     var tempMarker = null;
     var currentMode = 'tour'; 
+    var editModal = new bootstrap.Modal(document.getElementById('editModal'));
+    var topModal = new bootstrap.Modal(document.getElementById('topModal'));
 
-    // POKRENI SVE
+    // Pokretanje
     loadRegions(); 
     loadMonths();
 
-    // 2. FUNKCIJA ZA ŽUPANIJE (TOGGLE)
+    // 2. LOGIKA
     function loadRegions() {
         fetch('/api/regions').then(r => r.json()).then(data => {
             L.geoJSON(data, {
-                style: { 
-                    color: '#3388ff', weight: 1, fillColor: '#3388ff', fillOpacity: 0.1 
-                },
-                onEachFeature: function(feature, layer) {
-                    layer.bindTooltip(feature.properties.naziv, {
-                        permanent: false, direction: "center", className: "text-primary fw-bold bg-white border-0"
-                    });
-                }
+                style: { color: '#3388ff', weight: 1, fillColor: '#3388ff', fillOpacity: 0.1 },
+                onEachFeature: (f, l) => l.bindTooltip(f.properties.naziv, {permanent: false, direction: "center", className: "text-primary fw-bold bg-white border-0"})
             }).addTo(regionLayer);
         });
     }
 
     function toggleRegions() {
-        if(document.getElementById('regionToggle').checked) {
-            map.addLayer(regionLayer);
-        } else {
-            map.removeLayer(regionLayer);
-        }
+        if(document.getElementById('regionToggle').checked) map.addLayer(regionLayer); else map.removeLayer(regionLayer);
     }
 
-    // 3. PROMJENA MODA RADA
     function switchMode(mode) {
         currentMode = mode;
-        
         document.querySelectorAll('.nav-link').forEach(b => b.classList.remove('active'));
         document.getElementById(mode + '-tab').classList.add('active');
-        
         document.getElementById('tour-view').style.display = mode === 'tour' ? 'block' : 'none';
         document.getElementById('add-view').style.display = mode === 'add' ? 'block' : 'none';
 
-        // Čišćenje kod promjene tabova
-        tourLayer.clearLayers();
-        routeLayer.clearLayers();
-        clubCluster.clearLayers();
+        tourLayer.clearLayers(); routeLayer.clearLayers(); clubCluster.clearLayers();
         if(tempMarker) map.removeLayer(tempMarker);
 
-        if(mode === 'tour') {
-            loadTourData();
-        } else {
-            loadAllClubs(); 
-        }
+        if(mode === 'tour') loadTourData(); else loadAllClubs(); 
     }
 
-    // 4. MOD: TURNEJA
     function loadTourData() {
-        const m = document.getElementById('monthSelect').value;
+        const m = document.getElementById('monthSelect').value; 
         if(!m) return;
-
-        // !!! FIX: OVDJE BRIŠEMO STARE LAYERE PRIJE DODAVANJA NOVIH !!!
-        tourLayer.clearLayers();
+        
+        tourLayer.clearLayers(); 
         routeLayer.clearLayers();
 
-        // Statistika
+        // 1. Statistika
         fetch(`/api/stats?month=${m}`).then(r=>r.json()).then(s => {
             document.getElementById('sCount').innerText = s.broj;
             document.getElementById('sProfit').innerText = s.profit.toFixed(2) + ' €';
+            document.getElementById('sKm').innerText = s.km + ' km';
         });
 
-        // Gaže i Lista
+        // 2. Gaže (Markeri i Lista)
         fetch(`/api/gigs?month=${m}`).then(r=>r.json()).then(data => {
-            const list = document.getElementById('gigList');
+            const list = document.getElementById('gigList'); 
             list.innerHTML = ''; // Očisti listu
-
+            
             L.geoJSON(data, {
                 pointToLayer: (f, ll) => L.circleMarker(ll, {
                     radius: 8, fillColor: f.properties.boja, color: '#fff', weight: 2, fillOpacity: 1
                 }),
                 onEachFeature: (f, l) => {
-                    const popup = `<strong>${f.properties.naziv}</strong><br>${f.properties.datum}<br>${f.properties.honorar} €`;
-                    l.bindPopup(popup);
+                    // Logika: Je li zaključano?
+                    let actionBtn = '';
+                    if (f.properties.locked) {
+                        actionBtn = '<span class="badge bg-secondary w-100 mt-2">🔒 Zaključano</span>';
+                    } else {
+                        // Gumb za Popup na mapi
+                        actionBtn = `<button class="btn btn-sm btn-outline-primary mt-2 w-100" 
+                                     onclick="openEdit(${f.properties.id}, ${f.properties.honorar}, ${f.properties.troskovi})">
+                                     ✏️ Uredi Financije
+                                     </button>`;
+                    }
 
-                    // Dodaj u listu lijevo
+                    // Sadržaj Popupa
+                    const popupContent = `
+                        <div class="text-center">
+                            <strong>${f.properties.naziv}</strong><br>
+                            <span class="text-muted small">${f.properties.datum}</span><br>
+                            <hr class="my-1">
+                            Honorar: <b>${f.properties.honorar} €</b><br>
+                            Trošak: <b>${f.properties.troskovi} €</b>
+                            ${actionBtn}
+                        </div>`;
+                    
+                    l.bindPopup(popupContent);
+
+                    // --- GENERIRANJE LISTE LIJEVO ---
+                    
+                    // Gumb za listu (mali edit gumb) - koristimo event.stopPropagation da ne triggeramo zoom kad kliknemo edit
+                    let listEditBtn = f.properties.locked 
+                        ? '<span title="Zaključano">🔒</span>' 
+                        : `<button class="btn btn-sm btn-light border" title="Uredi" 
+                            onclick="event.stopPropagation(); openEdit(${f.properties.id}, ${f.properties.honorar}, ${f.properties.troskovi})">✏️</button>`;
+
+                    const profit = (f.properties.honorar - f.properties.troskovi).toFixed(0);
+
+                    // Dodajemo u sidebar listu
                     list.innerHTML += `
-                        <a href="#" class="list-group-item list-group-item-action py-2" onclick="zoomTo(${l.getLatLng().lat}, ${l.getLatLng().lng})">
-                            <div class="d-flex w-100 justify-content-between">
-                                <h6 class="mb-1 fw-bold" style="color:${f.properties.boja}">${f.properties.naziv}</h6>
-                                <small>${f.properties.datum}</small>
+                        <div class="list-group-item list-group-item-action py-2" style="cursor: pointer;" onclick="zoomTo(${l.getLatLng().lat}, ${l.getLatLng().lng})">
+                            <div class="d-flex w-100 justify-content-between align-items-center">
+                                <div>
+                                    <h6 class="mb-0 fw-bold" style="color:${f.properties.boja}">${f.properties.naziv}</h6>
+                                    <small class="text-muted">${f.properties.datum}</small>
+                                </div>
+                                <div class="text-end">
+                                    <span class="fw-bold text-success d-block">${profit} €</span>
+                                    ${listEditBtn}
+                                </div>
                             </div>
-                            <small class="text-muted">Profit: ${(f.properties.honorar).toFixed(0)} €</small>
-                        </a>`;
+                        </div>`;
                 }
             }).addTo(tourLayer);
         });
 
-        // Ruta
+        // 3. Ruta
         fetch(`/api/route?month=${m}`).then(r=>r.json()).then(d => {
             if(d.geometry) {
                 L.geoJSON(d, {style: {color:'black', dashArray:'5,10', weight: 3}}).addTo(routeLayer);
-                
-                // Automatski zoom na rutu
                 const bounds = L.geoJSON(d).getBounds();
                 if(bounds.isValid()) map.fitBounds(bounds, {padding: [50, 50]});
             }
         });
     }
 
-    function zoomTo(lat, lon) {
-        map.setView([lat, lon], 12);
-    }
-
-    // 5. MOD: UNOS (Klubovi)
     function loadAllClubs() {
         fetch('/api/clubs').then(r=>r.json()).then(data => {
             const geoJsonLayer = L.geoJSON(data, {
-                pointToLayer: (f, latlng) => {
-                    return L.circleMarker(latlng, {
-                        radius: 7, fillColor: '#6c757d', color: '#343a40', weight: 1, fillOpacity: 0.8
-                    });
-                },
+                pointToLayer: (f, latlng) => L.circleMarker(latlng, {radius: 7, fillColor: '#6c757d', color: '#343a40', weight: 1, fillOpacity: 0.8}),
                 onEachFeature: (f, layer) => {
-                    layer.bindTooltip(f.properties.naziv, {
-                        permanent: true, direction: 'top', offset: [0, -10], className: 'club-label'
-                    });
-                    layer.on('click', function(e) {
-                        L.DomEvent.stop(e); 
-                        fillForm(f.properties, e.latlng);
-                    });
+                    layer.bindTooltip(f.properties.naziv, {permanent: true, direction: 'top', offset: [0, -10], className: 'club-label'});
+                    layer.on('click', e => { L.DomEvent.stop(e); fillForm(f.properties, e.latlng); });
                 }
             });
             clubCluster.addLayer(geoJsonLayer);
         });
     }
 
-    map.on('click', function(e) {
-        if(currentMode !== 'add') return;
-        fillForm(null, e.latlng);
-    });
+    // 3. EDIT & MODAL LOGIKA
+    window.openEdit = (id, h, t) => { 
+        document.getElementById('editId').value = id; 
+        document.getElementById('editHonorar').value = h; 
+        document.getElementById('editTrosak').value = t; 
+        editModal.show(); 
+    };
 
-    function fillForm(props, latlng) {
-        if(tempMarker) map.removeLayer(tempMarker);
-        tempMarker = L.marker(latlng).addTo(map);
-
-        document.getElementById('inLat').value = latlng.lat.toFixed(5);
-        document.getElementById('inLon').value = latlng.lng.toFixed(5);
-
-        if(props) {
-            document.getElementById('inKlubId').value = props.id;
-            document.getElementById('inNaziv').value = props.naziv;
-            document.getElementById('inAdresa').value = props.adresa || '';
-            document.getElementById('inNaziv').readOnly = true; 
-            document.getElementById('inAdresa').readOnly = true; 
-        } else {
-            resetForm();
-            document.getElementById('inLat').value = latlng.lat.toFixed(5);
-            document.getElementById('inLon').value = latlng.lng.toFixed(5);
-        }
-    }
-
-    function resetForm() {
-        document.getElementById('addForm').reset();
-        document.getElementById('inKlubId').value = "";
-        document.getElementById('inNaziv').readOnly = false;
-        document.getElementById('inAdresa').readOnly = false;
-        if(tempMarker) map.removeLayer(tempMarker);
-    }
-
-    // 6. OSTALO
-    function loadMonths() {
-        fetch('/api/months').then(r=>r.json()).then(d => {
-            const sel = document.getElementById('monthSelect');
-            sel.innerHTML = '';
-            d.forEach(m => sel.add(new Option(m.naziv, m.id)));
-            if(currentMode === 'tour' && d.length > 0) loadTourData();
+    window.saveEdit = () => {
+        const id = document.getElementById('editId').value;
+        const body = {honorar: document.getElementById('editHonorar').value, trosak: document.getElementById('editTrosak').value};
+        fetch(`/api/gigs/${id}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)})
+        .then(r=>r.json()).then(res => { 
+            if(res.error) alert(res.error); else { editModal.hide(); loadTourData(); }
         });
+    };
+
+    window.showTopList = () => {
+        fetch('/api/top').then(r=>r.json()).then(d => {
+            const l = document.getElementById('topList'); l.innerHTML = '';
+            d.forEach((k, i) => l.innerHTML += `<li class="list-group-item d-flex justify-content-between align-items-center"><span>${i+1}. <strong>${k.naziv}</strong> <small class="text-muted">(${k.regija})</small></span> <span class="badge bg-primary rounded-pill">${k.profit} €</span></li>`);
+            topModal.show();
+        });
+    };
+
+    window.lockMonth = () => {
+        const m = document.getElementById('monthSelect').value;
+        if(confirm(`Sigurno zaključati mjesec ${m}? Podaci se više neće moći mijenjati!`)) {
+            fetch('/api/lock', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({month:m})})
+            .then(r=>r.json()).then(res => { if(res.success) { alert('Zaključano!'); loadTourData(); } else alert(res.error); });
+        }
+    };
+
+    // Helperi
+    map.on('click', e => { if(currentMode==='add') fillForm(null, e.latlng); });
+    function zoomTo(lat, lon) { map.setView([lat, lon], 12); }
+    function fillForm(p, ll) {
+        if(tempMarker) map.removeLayer(tempMarker); tempMarker = L.marker(ll).addTo(map);
+        document.getElementById('inLat').value = ll.lat.toFixed(5); document.getElementById('inLon').value = ll.lng.toFixed(5);
+        if(p) { document.getElementById('inKlubId').value=p.id; document.getElementById('inNaziv').value=p.naziv; document.getElementById('inAdresa').value=p.adresa||''; document.getElementById('inNaziv').readOnly=true; document.getElementById('inAdresa').readOnly=true; }
+        else { resetForm(); document.getElementById('inLat').value = ll.lat.toFixed(5); document.getElementById('inLon').value = ll.lng.toFixed(5); }
     }
+    function resetForm() { document.getElementById('addForm').reset(); document.getElementById('inKlubId').value=""; document.getElementById('inNaziv').readOnly=false; document.getElementById('inAdresa').readOnly=false; if(tempMarker) map.removeLayer(tempMarker); }
+
+    function loadMonths() { fetch('/api/months').then(r=>r.json()).then(d => { 
+        const s=document.getElementById('monthSelect'); s.innerHTML=''; d.forEach(m=>s.add(new Option(m.naziv, m.id))); 
+        if(currentMode==='tour') loadTourData();
+    }); }
     document.getElementById('monthSelect').addEventListener('change', loadTourData);
 
-    // 7. SPREMANJE
-    document.getElementById('addForm').addEventListener('submit', function(e) {
+    document.getElementById('addForm').addEventListener('submit', e => {
         e.preventDefault();
-        const data = {
-            klub_id: document.getElementById('inKlubId').value,
-            naziv: document.getElementById('inNaziv').value,
-            adresa: document.getElementById('inAdresa').value,
-            lat: document.getElementById('inLat').value,
-            lon: document.getElementById('inLon').value,
-            datum: document.getElementById('inDatum').value,
-            honorar: document.getElementById('inHonorar').value,
-            trosak: document.getElementById('inTrosak').value,
-            kat: document.getElementById('inKat').value
-        };
-
-        fetch('/api/add', {
-            method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data)
-        }).then(r=>r.json()).then(res => {
-            alert('Uspješno spremljeno!');
-            resetForm();
-            loadMonths(); 
-            if(currentMode === 'add') loadAllClubs(); 
+        fetch('/api/add', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({
+            klub_id:document.getElementById('inKlubId').value, naziv:document.getElementById('inNaziv').value, adresa:document.getElementById('inAdresa').value,
+            lat:document.getElementById('inLat').value, lon:document.getElementById('inLon').value, datum:document.getElementById('inDatum').value,
+            honorar:document.getElementById('inHonorar').value, trosak:document.getElementById('inTrosak').value, kat:document.getElementById('inKat').value
+        })}).then(r=>r.json()).then(res => { 
+            if(res.error) alert(res.error); else { alert('Spremljeno!'); resetForm(); loadMonths(); if(currentMode==='add') loadAllClubs(); }
         });
     });
 </script>
-
 </body>
 </html>

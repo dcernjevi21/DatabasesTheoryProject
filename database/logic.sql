@@ -1,45 +1,92 @@
--- 2. FUNKCIJE I LOGIKA
 
--- Izračun profita (Jednostavna verzija: Prihod - Trošak)
+-- ==========================================
+-- 2. FUNKCIJE
+-- ==========================================
+
+-- Profit
 CREATE OR REPLACE FUNCTION izracunaj_profit(honorar NUMERIC, troskovi NUMERIC)
 RETURNS NUMERIC AS $$
 BEGIN
-    -- Ako želiš bez poreza, samo makni * 0.75
     RETURN honorar - troskovi; 
 END;
 $$ LANGUAGE plpgsql;
 
--- TRIGGER: Automatski regija za KLUB (samo jednom se računa)
-CREATE OR REPLACE FUNCTION trg_klub_regija()
-RETURNS TRIGGER AS $$
+-- Ukupni KM (Zračna linija)
+CREATE OR REPLACE FUNCTION ukupni_km_mjeseca(mjesec VARCHAR)
+RETURNS FLOAT AS $$
+DECLARE 
+    linija GEOMETRY;
+BEGIN
+    SELECT ST_MakeLine(k.geom ORDER BY g.datum_nastupa) INTO linija
+    FROM gaza g JOIN klub k ON g.klub_id = k.id
+    WHERE to_char(g.datum_nastupa, 'YYYY-MM') = mjesec;
+
+    IF linija IS NULL OR ST_NumPoints(linija) < 2 THEN RETURN 0; END IF;
+    RETURN ST_Length(linija::geography) / 1000.0;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ==========================================
+-- 3. TRIGGERI (OKIDAČI)
+-- ==========================================
+
+-- A) Automatska regija za klub
+CREATE OR REPLACE FUNCTION trg_klub_regija() RETURNS TRIGGER AS $$
 DECLARE r RECORD;
 BEGIN
     FOR r IN SELECT id, geom FROM regija LOOP
         IF ST_Intersects(r.geom, NEW.geom) THEN
-            NEW.regija_id := r.id;
-            EXIT;
+            NEW.regija_id := r.id; EXIT;
         END IF;
     END LOOP;
     NEW.tsv := to_tsvector('simple', unaccent(NEW.naziv || ' ' || COALESCE(NEW.adresa, '')));
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
+CREATE TRIGGER trg_klub_insert BEFORE INSERT OR UPDATE ON klub FOR EACH ROW EXECUTE FUNCTION trg_klub_regija();
 
-CREATE TRIGGER trg_klub_insert
-BEFORE INSERT OR UPDATE ON klub
-FOR EACH ROW EXECUTE FUNCTION trg_klub_regija();
+-- B) Audit Log (Bilježi promjenu honorara)
+CREATE OR REPLACE FUNCTION trg_audit_honorar_func() RETURNS TRIGGER AS $$
+BEGIN
+    IF OLD.honorar <> NEW.honorar THEN
+        INSERT INTO audit_log (gaza_id, stari_honorar, novi_honorar)
+        VALUES (OLD.id, OLD.honorar, NEW.honorar);
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+CREATE TRIGGER trg_audit_honorar AFTER UPDATE ON gaza FOR EACH ROW EXECUTE FUNCTION trg_audit_honorar_func();
 
--- 3. POGLEDI ZA APLIKACIJU
+-- C) Zabrana izmjene zaključanih gaža
+CREATE OR REPLACE FUNCTION trg_check_locked() RETURNS TRIGGER AS $$
+BEGIN
+    IF OLD.zakljucano = TRUE AND (NEW.zakljucano = TRUE) THEN -- Dozvoli samo otključavanje adminu, ali ne izmjenu podataka
+       RAISE EXCEPTION 'Ova gaža je zaključana i ne može se mijenjati!';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+CREATE TRIGGER trg_prevent_update BEFORE UPDATE ON gaza FOR EACH ROW WHEN (OLD.zakljucano IS TRUE) EXECUTE FUNCTION trg_check_locked();
 
--- View: Dostupni mjeseci (iz tablice GAŽA)
-CREATE OR REPLACE VIEW view_dostupni_mjeseci AS
-SELECT DISTINCT 
-    to_char(datum_nastupa, 'YYYY-MM') as id_mjeseca,
-    to_char(datum_nastupa, 'TMMonth YYYY') as naziv_mjeseca
-FROM gaza
-ORDER BY id_mjeseca DESC;
+-- ==========================================
+-- 4. PROCEDURE
+-- ==========================================
 
--- View: Statistika (spaja gažu i klub)
+-- Procedura: ZAKLJUČAJ MJESEC (Financijsko zatvaranje)
+CREATE OR REPLACE PROCEDURE zakljucaj_mjesec(mjesec_str VARCHAR)
+LANGUAGE plpgsql AS $$
+BEGIN
+    UPDATE gaza 
+    SET zakljucano = TRUE 
+    WHERE to_char(datum_nastupa, 'YYYY-MM') = mjesec_str;
+END;
+$$;
+
+-- ==========================================
+-- 5. POGLEDI
+-- ==========================================
+
+-- View: Statistika
 CREATE OR REPLACE VIEW view_statistika_mjesec AS
 SELECT 
     to_char(g.datum_nastupa, 'YYYY-MM') as id_mjeseca,
@@ -50,21 +97,36 @@ SELECT
 FROM gaza g
 GROUP BY to_char(g.datum_nastupa, 'YYYY-MM');
 
--- Funkcija za rutu mjeseca
-CREATE OR REPLACE FUNCTION get_monthly_route(mjesec VARCHAR)
-RETURNS JSON AS $$
+-- View: Top Klubovi (Za modal)
+CREATE OR REPLACE VIEW view_top_klubovi AS
+SELECT 
+    k.naziv,
+    r.naziv as regija,
+    COUNT(g.id) as broj_nastupa,
+    SUM(g.honorar - g.troskovi) as ukupni_profit
+FROM klub k
+JOIN gaza g ON k.id = g.klub_id
+LEFT JOIN regija r ON k.regija_id = r.id
+GROUP BY k.id, k.naziv, r.naziv
+ORDER BY ukupni_profit DESC;
+
+-- View: Mjeseci
+CREATE OR REPLACE VIEW view_dostupni_mjeseci AS
+SELECT DISTINCT to_char(datum_nastupa, 'YYYY-MM') as id, to_char(datum_nastupa, 'TMMonth YYYY') as naziv 
+FROM gaza ORDER BY id DESC;
+
+-- Funkcija za rutu
+CREATE OR REPLACE FUNCTION get_monthly_route(mjesec VARCHAR) RETURNS JSON AS $$
 DECLARE geo JSON;
 BEGIN
     SELECT ST_AsGeoJSON(ST_MakeLine(k.geom ORDER BY g.datum_nastupa))::json INTO geo
-    FROM gaza g
-    JOIN klub k ON g.klub_id = k.id
-    WHERE to_char(g.datum_nastupa, 'YYYY-MM') = mjesec;
+    FROM gaza g JOIN klub k ON g.klub_id = k.id WHERE to_char(g.datum_nastupa, 'YYYY-MM') = mjesec;
     RETURN geo;
 END;
 $$ LANGUAGE plpgsql;
 
 -- 4. SEED DATA
-INSERT INTO kategorija (naziv, boja) VALUES ('Klub', '#e74c3c'), ('Festival', '#9b59b6'), ('Bar', '#3498db'), ('Privatni event', '#2ecc71');
+INSERT INTO kategorija (naziv, boja) VALUES ('Klub', '#e74c3c'), ('Festival', '#9b59b6'), ('Bar', '#3498db'), ('Privatni event', '#');
 
 -- Unosimo KLUBOVE (Samo jednom!)
 
