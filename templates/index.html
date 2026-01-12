@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="hr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GeoTracker - GIS Projekt</title>
+    
+    <!-- Bootstrap CSS (Dizajn) -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Leaflet CSS (Mapa) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        #map { height: 600px; width: 100%; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .stat-card { transition: transform 0.2s; }
+        .stat-card:hover { transform: translateY(-5px); }
+    </style>
+</head>
+<body class="bg-light">
+
+<nav class="navbar navbar-dark bg-dark mb-4">
+    <div class="container">
+        <span class="navbar-brand mb-0 h1">🌍 GeoTracker (PostGIS + Flask)</span>
+    </div>
+</nav>
+
+<div class="container">
+    <div class="row">
+        <!-- Lijevi stupac: MAPA -->
+        <div class="col-md-8">
+            <div class="card p-3 mb-4">
+                <h4>🗺️ Interaktivna karta</h4>
+                <p class="text-muted small">Klikni na mapu za dodavanje nove lokacije!</p>
+                <div id="map"></div>
+            </div>
+        </div>
+
+        <!-- Desni stupac: STATISTIKA -->
+        <div class="col-md-4">
+            <div class="card p-3 mb-4">
+                <h4>📊 Statistika</h4>
+                <canvas id="myChart"></canvas>
+            </div>
+            
+            <div class="card p-3">
+                <h5>Legenda kategorija</h5>
+                <ul class="list-group list-group-flush" id="legendList">
+                    <!-- Ovdje će JS ubaciti podatke -->
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODALNI PROZOR ZA UNOS (Iskoči kad klikneš na mapu) -->
+<div class="modal fade" id="addModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Nova Lokacija</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="locationForm">
+                    <input type="hidden" id="inputLat">
+                    <input type="hidden" id="inputLon">
+                    
+                    <div class="mb-3">
+                        <label>Naziv</label>
+                        <input type="text" class="form-control" id="inputNaziv" required>
+                    </div>
+                    <div class="mb-3">
+                        <label>Opis</label>
+                        <textarea class="form-control" id="inputOpis"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label>Kategorija</label>
+                        <select class="form-select" id="inputKategorija">
+                            <option value="1">Priroda</option>
+                            <option value="2">Kultura</option>
+                            <option value="3">Hrana</option>
+                            <option value="4">Ostalo</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label>Ocjena (1-5)</label>
+                        <input type="number" class="form-control" id="inputOcjena" min="1" max="5" value="5">
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">Spremi Lokaciju</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- SKRIPTE -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+    // 1. INICIJALIZACIJA MAPE (Centar: Zagreb)
+    var map = L.map('map').setView([45.81, 15.97], 12);
+
+    // Dodaj OpenStreetMap podlogu
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    // Varijabla za Chart instancu
+    let statsChart = null;
+
+    // 2. FUNKCIJA: Učitaj lokacije s Backenda
+    function loadLocations() {
+        fetch('/api/locations')
+            .then(response => response.json())
+            .then(data => {
+                // Očisti stare markere (ovo je pojednostavljeno, inače bi ih spremali u array)
+                // Ovdje samo dodajemo nove preko postojećih radi jednostavnosti
+                
+                L.geoJSON(data, {
+                    onEachFeature: function (feature, layer) {
+                        layer.bindPopup(`
+                            <strong>${feature.properties.naziv}</strong><br>
+                            <span class="badge bg-secondary">${feature.properties.kategorija}</span><br>
+                            ${feature.properties.opis}
+                        `);
+                    }
+                }).addTo(map);
+            });
+    }
+
+    // 3. FUNKCIJA: Učitaj statistiku za Graf
+    function loadStats() {
+        fetch('/api/stats')
+            .then(res => res.json())
+            .then(data => {
+                const labels = data.map(d => d.kategorija);
+                const counts = data.map(d => d.broj);
+                
+                const ctx = document.getElementById('myChart').getContext('2d');
+                
+                // Ako graf već postoji, uništi ga prije crtanja novog
+                if (statsChart) statsChart.destroy();
+
+                statsChart = new Chart(ctx, {
+                    type: 'doughnut', // Može biti 'bar', 'pie', 'line'
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Broj lokacija',
+                            data: counts,
+                            backgroundColor: ['#4CAF50', '#2196F3', '#FF9800', '#9E9E9E']
+                        }]
+                    }
+                });
+
+                // Popuni legendu tekstom
+                const list = document.getElementById('legendList');
+                list.innerHTML = '';
+                data.forEach(d => {
+                    list.innerHTML += `<li class="list-group-item d-flex justify-content-between align-items-center">
+                        ${d.kategorija}
+                        <span class="badge bg-primary rounded-pill">${d.broj}</span>
+                    </li>`;
+                });
+            });
+    }
+
+    // 4. INTERAKCIJA: Klik na mapu otvara Modal
+    const addModal = new bootstrap.Modal(document.getElementById('addModal'));
+    
+    map.on('click', function(e) {
+        document.getElementById('inputLat').value = e.latlng.lat;
+        document.getElementById('inputLon').value = e.latlng.lng;
+        addModal.show();
+    });
+
+    // 5. SLANJE FORME (Spremanje u bazu)
+    document.getElementById('locationForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const data = {
+            naziv: document.getElementById('inputNaziv').value,
+            opis: document.getElementById('inputOpis').value,
+            kategorija_id: document.getElementById('inputKategorija').value,
+            ocjena: document.getElementById('inputOcjena').value,
+            lat: document.getElementById('inputLat').value,
+            lon: document.getElementById('inputLon').value
+        };
+
+        fetch('/api/add', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        })
+        .then(res => res.json())
+        .then(response => {
+            addModal.hide();
+            document.getElementById('locationForm').reset();
+            alert("Lokacija spremljena!");
+            
+            // Osvježi mapu i graf
+            loadLocations();
+            loadStats();
+            // Opcionalno: reload stranice da se sve očisti
+            location.reload(); 
+        })
+        .catch(err => alert("Greška: " + err));
+    });
+
+    // Pokreni sve odmah pri učitavanju
+    loadLocations();
+    loadStats();
+</script>
+
+</body>
+</html>
