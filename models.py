@@ -4,7 +4,7 @@ from geoalchemy2 import Geometry
 # Inicijalizacija objekta baze
 db = SQLAlchemy()
 
-# Model za tablicu 'kategorija'
+# Model za tablicu kategorija
 class Kategorija(db.Model):
     __tablename__ = 'kategorija'
     id = db.Column(db.Integer, primary_key=True)
@@ -12,7 +12,7 @@ class Kategorija(db.Model):
     opis = db.Column(db.Text)
     ikona_url = db.Column(db.String(255))
 
-# Model za tablicu 'lokacija'
+# Model za tablicu lokacija
 class Lokacija(db.Model):
     __tablename__ = 'lokacija'
     id = db.Column(db.Integer, primary_key=True)
@@ -22,5 +22,5 @@ class Lokacija(db.Model):
     ocjena = db.Column(db.Integer)
     kategorija_id = db.Column(db.Integer, db.ForeignKey('kategorija.id'))
     
-    # Ovdje definiramo da je ovo geometrijski stupac (PostGIS)
+    # Definiranje da je geometrijski stupac 
     geom = db.Column(Geometry('POINT', srid=4326))

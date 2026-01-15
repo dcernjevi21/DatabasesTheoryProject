@@ -1,9 +1,7 @@
 
--- ==========================================
 -- FUNKCIJE
--- ==========================================
 
--- Profit
+
 CREATE OR REPLACE FUNCTION izracunaj_profit(honorar NUMERIC, troskovi NUMERIC)
 RETURNS NUMERIC AS $$
 BEGIN
@@ -11,7 +9,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Ukupni KM (Zračna linija)
+
 CREATE OR REPLACE FUNCTION ukupni_km_mjeseca(mjesec VARCHAR)
 RETURNS FLOAT AS $$
 DECLARE 
@@ -26,7 +24,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- mjesecna ruta
+
 CREATE OR REPLACE FUNCTION get_monthly_route(mjesec VARCHAR) RETURNS JSON AS $$
 DECLARE geo JSON;
 BEGIN
@@ -36,11 +34,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- ==========================================
--- TRIGGERI
--- ==========================================
 
--- automatska regija za klub
+---- Okidači
+
+
 CREATE OR REPLACE FUNCTION trg_klub_regija() RETURNS TRIGGER AS $$
 DECLARE r RECORD;
 BEGIN
@@ -78,11 +75,9 @@ END;
 $$ LANGUAGE plpgsql;
 CREATE TRIGGER trg_prevent_update BEFORE UPDATE ON gaza FOR EACH ROW WHEN (OLD.zakljucano IS TRUE) EXECUTE FUNCTION trg_check_locked();
 
--- ==========================================
--- PROCEDURE
--- ==========================================
 
--- zaključavanje mjeseca
+---- Procedure
+
 CREATE OR REPLACE PROCEDURE zakljucaj_mjesec(mjesec_str VARCHAR)
 LANGUAGE plpgsql AS $$
 BEGIN
@@ -92,11 +87,9 @@ BEGIN
 END;
 $$;
 
--- ==========================================
--- POGLEDI
--- ==========================================
 
--- mjesecna statistika
+---- Pogledi
+
 CREATE OR REPLACE VIEW view_statistika_mjesec AS
 SELECT 
     to_char(g.datum_nastupa, 'YYYY-MM') as id_mjeseca,
@@ -107,7 +100,7 @@ SELECT
 FROM gaza g
 GROUP BY to_char(g.datum_nastupa, 'YYYY-MM');
 
--- top klubovi
+
 CREATE OR REPLACE VIEW view_top_klubovi AS
 SELECT 
     k.naziv,
@@ -120,15 +113,13 @@ LEFT JOIN regija r ON k.regija_id = r.id
 GROUP BY k.id, k.naziv, r.naziv
 ORDER BY ukupni_profit DESC;
 
--- dostupni mjeseci
+
 CREATE OR REPLACE VIEW view_dostupni_mjeseci AS
 SELECT DISTINCT to_char(datum_nastupa, 'YYYY-MM') as id, to_char(datum_nastupa, 'TMMonth YYYY') as naziv 
 FROM gaza ORDER BY id DESC;
 
 
--- ==========================================
--- SEED PODATAKA
--- ==========================================
+---- Seed podataka
 INSERT INTO kategorija (naziv, boja) VALUES ('Klub', '#e74c3c'), ('Festival', '#9b59b6'), ('Bar', '#3498db'), ('Privatni event', '#');
 
 INSERT INTO klub (naziv, adresa, geom) VALUES
@@ -147,10 +138,10 @@ INSERT INTO klub (naziv, adresa, geom) VALUES
 ('Papaya', 'Zrće', ST_SetSRID(ST_MakePoint(14.890, 44.540), 4326)),
 ('Opera', 'Zadar', ST_SetSRID(ST_MakePoint(15.230, 44.110), 4326));
 
--- UNOS SVIH HRVATSKIH ŽUPANIJA (aproksimirane granice)
--- Koristimo ST_GeomFromText s POLYGON-ima koji prate oblik HR
+-- Unos svih hrvatskih županija (okvirne granice)
+-- Koristimo ST_GeomFromText s polygonima
 
--- --- SJEVER I SREDIŠNJA HRVATSKA ---
+-- Sjever i središnja Hrvatska
 INSERT INTO regija (naziv, geom) VALUES
 ('Grad Zagreb', ST_GeomFromText('POLYGON((15.8 45.9, 16.1 45.9, 16.1 45.7, 15.8 45.7, 15.8 45.9))', 4326)),
 ('Zagrebačka županija', ST_GeomFromText('POLYGON((15.4 46.0, 16.4 46.0, 16.4 45.5, 15.4 45.5, 15.4 46.0))', 4326)),
@@ -162,7 +153,7 @@ INSERT INTO regija (naziv, geom) VALUES
 ('Sisačko-moslavačka', ST_GeomFromText('POLYGON((15.9 45.6, 17.0 45.6, 17.0 45.0, 15.9 45.0, 15.9 45.6))', 4326)),
 ('Karlovačka županija', ST_GeomFromText('POLYGON((15.2 45.7, 15.8 45.7, 15.8 44.9, 15.2 44.9, 15.2 45.7))', 4326));
 
--- --- SLAVONIJA ---
+-- Slavonija
 INSERT INTO regija (naziv, geom) VALUES
 ('Virovitičko-podravska', ST_GeomFromText('POLYGON((17.2 46.0, 18.0 46.0, 18.0 45.5, 17.2 45.5, 17.2 46.0))', 4326)),
 ('Požeško-slavonska', ST_GeomFromText('POLYGON((17.4 45.6, 18.0 45.6, 18.0 45.2, 17.4 45.2, 17.4 45.6))', 4326)),
@@ -170,19 +161,20 @@ INSERT INTO regija (naziv, geom) VALUES
 ('Osječko-baranjska', ST_GeomFromText('POLYGON((18.0 45.9, 19.1 45.9, 19.1 45.3, 18.0 45.3, 18.0 45.9))', 4326)),
 ('Vukovarsko-srijemska', ST_GeomFromText('POLYGON((18.7 45.4, 19.5 45.4, 19.5 44.8, 18.7 44.8, 18.7 45.4))', 4326));
 
--- --- ISTRA, KVARNER I LIKA ---
+-- Istra, Kvarner i Lika
 INSERT INTO regija (naziv, geom) VALUES
 ('Istarska županija', ST_GeomFromText('POLYGON((13.5 45.5, 14.2 45.5, 14.2 44.7, 13.9 44.7, 13.5 45.5))', 4326)),
 ('Primorsko-goranska', ST_GeomFromText('POLYGON((14.2 45.7, 15.2 45.7, 15.2 44.5, 14.2 44.5, 14.2 45.7))', 4326)),
 ('Ličko-senjska', ST_GeomFromText('POLYGON((14.8 45.1, 15.9 45.1, 15.9 44.3, 14.8 44.3, 14.8 45.1))', 4326));
 
--- --- DALMACIJA ---
+-- Dalmacija
 INSERT INTO regija (naziv, geom) VALUES
 ('Zadarska županija', ST_GeomFromText('POLYGON((14.6 44.6, 16.0 44.6, 16.0 43.9, 14.6 43.9, 14.6 44.6))', 4326)),
 ('Šibensko-kninska', ST_GeomFromText('POLYGON((15.6 44.2, 16.4 44.2, 16.4 43.5, 15.6 43.5, 15.6 44.2))', 4326)),
 ('Splitsko-dalmatinska', ST_GeomFromText('POLYGON((16.0 44.0, 17.3 44.0, 17.3 43.0, 16.0 43.0, 16.0 44.0))', 4326)),
 ('Dubrovačko-neretvanska', ST_GeomFromText('POLYGON((17.3 43.1, 18.6 43.1, 18.6 42.3, 17.3 42.3, 17.3 43.1))', 4326));
 
+-- Unos dodatnih gaža
 INSERT INTO gaza (klub_id, kategorija_id, datum_nastupa, honorar, troskovi, opis) VALUES
 (1, 1, '2025-05-02', 600.00, 20.00, 'Boogaloo'), (3, 3, '2025-05-03', 350.00, 30.00, 'Samobor'), (4, 1, '2025-05-09', 500.00, 150.00, 'Osijek'), (5, 1, '2025-05-10', 450.00, 20.00, 'Epic'), (2, 1, '2025-05-23', 800.00, 30.00, 'Peti Kupe'), (1, 1, '2025-05-30', 600.00, 20.00, 'ZG Close'),
 (6, 1, '2025-06-06', 550.00, 100.00, 'Rijeka'), (7, 2, '2025-06-07', 400.00, 50.00, 'Pula'), (8, 1, '2025-06-14', 900.00, 120.00, 'Rovinj'), (8, 4, '2025-06-15', 1200.00, 0.00, 'Vjenčanje'), (6, 1, '2025-06-20', 600.00, 100.00, 'Rijeka'), (7, 3, '2025-06-21', 300.00, 30.00, 'Pula Beach'),

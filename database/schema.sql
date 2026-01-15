@@ -1,3 +1,5 @@
+
+-- Reset
 DROP SCHEMA public CASCADE;
 CREATE SCHEMA public;
 GRANT ALL ON SCHEMA public TO postgres;
@@ -6,9 +8,7 @@ GRANT ALL ON SCHEMA public TO public;
 CREATE EXTENSION IF NOT EXISTS postgis;
 CREATE EXTENSION IF NOT EXISTS unaccent;
 
--- ==========================================
--- 1. TABLICE I PREDIKATI (CONSTRAINTS)
--- ==========================================
+---- Tablice (i pripadajući prekidati) 
 
 CREATE TABLE regija (
     id SERIAL PRIMARY KEY,
@@ -39,9 +39,9 @@ CREATE TABLE gaza (
     honorar NUMERIC(10, 2) DEFAULT 0,
     troskovi NUMERIC(10, 2) DEFAULT 0,
     opis TEXT,
-    zakljucano BOOLEAN DEFAULT FALSE, -- Za proceduru zakljucavanja
+    zakljucano BOOLEAN DEFAULT FALSE, -- za proceduru zakljucavanja
     
-    -- CHECK CONSTRAINTS (Sigurnost podataka)
+    -- Predikati
     CONSTRAINT chk_financije_pozitivne CHECK (honorar >= 0 AND troskovi >= 0),
     CONSTRAINT chk_datum_validan CHECK (datum_nastupa > '2020-01-01')
 );

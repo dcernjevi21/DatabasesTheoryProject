@@ -4,8 +4,8 @@ from flask_sqlalchemy import SQLAlchemy
 import json
 
 app = Flask(__name__)
-# PAZI LOZINKU!
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:postgres@localhost/geotracker'
+# !!!!!!!!! LOZINKA ZA BAZU !!!!!!!!!!!!!!!!!!!
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:postgres@localhost/geotracker' # Promijeniti prema potrebi postgresql://postgres:______@localhost/geotracker
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
@@ -13,13 +13,14 @@ db = SQLAlchemy(app)
 def index():
     return render_template('index.html')
 
-# ... (Stari API-ji ostaju isti: get_clubs, get_route, get_months) ...
+# Ruta za dohvat klubova
 @app.route('/api/clubs')
 def get_clubs():
     sql = text("SELECT id, naziv, adresa, ST_AsGeoJSON(geom) as geom FROM klub")
     res = db.session.execute(sql)
     return jsonify({"type":"FeatureCollection", "features":[{"type":"Feature","geometry":json.loads(r.geom),"properties":{"id":r.id,"naziv":r.naziv,"adresa":r.adresa}} for r in res]})
 
+# Ruta za dohvat rute za odabrani mjesec
 @app.route('/api/route')
 def get_route():
     month = request.args.get('month')
@@ -31,9 +32,26 @@ def get_months():
     res = db.session.execute(text("SELECT * FROM view_dostupni_mjeseci"))
     return jsonify([{"id":r.id, "naziv":r.naziv} for r in res])
 
-# --- NOVO I IZMJENJENO ---
 
-# 1. Statistika s Kilometrima
+# Ruta za dohvat regija
+@app.route('/api/regions')
+def get_regions():
+    try:
+        sql = text("SELECT naziv, ST_AsGeoJSON(geom) as geom FROM regija")
+        result = db.session.execute(sql)
+        
+        features = []
+        for row in result:
+            features.append({
+                "type": "Feature",
+                "geometry": json.loads(row.geom),
+                "properties": { "naziv": row.naziv }
+            })
+        return jsonify({"type": "FeatureCollection", "features": features})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# Ruta za dohvat statistike
 @app.route('/api/stats')
 def get_stats():
     month = request.args.get('month')
@@ -44,7 +62,7 @@ def get_stats():
         return jsonify({"broj": row.broj_gaza, "profit": float(row.profit), "km": round(km, 1)})
     return jsonify({"broj": 0, "profit": 0, "km": 0})
 
-# 2. Gaže (Sada vraća i ID gaže za editiranje)
+# Ruta za dohvat gaža
 @app.route('/api/gigs')
 def get_gigs():
     month = request.args.get('month')
@@ -69,7 +87,7 @@ def get_gigs():
         })
     return jsonify({"type": "FeatureCollection", "features": features})
 
-# 3. UREDI GAŽU (Demonstrira Trigger Audit)
+# Uredi Gažu
 @app.route('/api/gigs/<int:id>', methods=['PUT'])
 def update_gig(id):
     d = request.json
@@ -81,19 +99,19 @@ def update_gig(id):
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
-# 4. TOP LISTA (View)
+# Ruta za dohvat top liste
 @app.route('/api/top')
 def get_top():
     res = db.session.execute(text("SELECT * FROM view_top_klubovi LIMIT 5"))
     return jsonify([{"naziv": r.naziv, "regija": r.regija, "nastupa": r.broj_nastupa, "profit": float(r.ukupni_profit)} for r in res])
 
-# 5. PROCEDURA: ZAKLJUČAJ
+# Ruta za zaaključavanje mjeseca
 @app.route('/api/lock', methods=['POST'])
 def lock_month():
     month = request.json.get('month')
     try:
         # Poziv procedure s COMMIT unutar nje
-        # Flask-SQLAlchemy automatski radi u transakciji, pa moramo koristiti raw connection za CALL
+        # Flask-SQLAlchemy automatski radi u transakciji, pa moramo koristiti raw connection za poziv (call)
         with db.engine.connect() as conn:
             conn.execute(text(f"CALL zakljucaj_mjesec('{month}')"))
             conn.commit()
@@ -101,7 +119,7 @@ def lock_month():
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
-# 6. Dodaj (Klub/Gaža)
+# Ruta za dodavanje novog kluba i gaže
 @app.route('/api/add', methods=['POST'])
 def add_data():
     d = request.json

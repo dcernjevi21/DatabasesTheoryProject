@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="hr">
+<html lang="hr" data-bs-theme="dark">
 <head>
     <meta charset="UTF-8">
     <title>DJ Tour Manager Pro</title>
@@ -10,51 +10,87 @@
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
-    <!-- MarkerCluster CSS (Za grupiranje točaka) -->
+    <!-- MarkerCluster CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
 
     <style>
-        body { height: 100vh; display: flex; flex-direction: column; }
-        .main-container { flex: 1; display: flex; overflow: hidden; }
-        .sidebar { width: 380px; background: #f8f9fa; border-right: 1px solid #ccc; padding: 15px; overflow-y: auto; z-index: 1000; }
-        #map { flex: 1; }
+        body { height: 100vh; display: flex; flex-direction: column; background-color: #212529; color: #f8f9fa; }
         
-        .club-label {
-            background: rgba(255, 255, 255, 0.9); border: 1px solid #333; border-radius: 3px;
-            padding: 0 4px; font-size: 11px; font-weight: bold; white-space: nowrap;
+        .main-container { flex: 1; display: flex; overflow: hidden; }
+        
+        /* Dark Sidebar */
+        .sidebar { 
+            width: 380px; 
+            background: #2b3035; 
+            border-right: 1px solid #495057; 
+            padding: 15px; 
+            overflow-y: auto; 
+            z-index: 1000; 
         }
         
-        .nav-tabs .nav-link.active { font-weight: bold; border-bottom: 3px solid #0d6efd; color: #0d6efd; }
-        .nav-link { color: #555; }
+        /* Map container background */
+        #map { flex: 1; background: #ddd; }
+        
+
+        /* Prilagodba Popupa da budu tamni */
+        .leaflet-popup-content-wrapper, .leaflet-popup-tip {
+            background-color: #343a40;
+            color: #e9ecef;
+            box-shadow: 0 3px 14px rgba(0,0,0,0.4);
+        }
+        .leaflet-container a.leaflet-popup-close-button {
+            color: #b0b0b0;
+        }
+
+        /* Label kluba */
+        .club-label {
+            background: rgba(33, 37, 41, 0.9);
+            border: 1px solid #adb5bd;
+            color: #fff;
+            border-radius: 3px;
+            padding: 0 4px; 
+            font-size: 11px; 
+            font-weight: bold; 
+            white-space: nowrap;
+        }
+        
+        /* Tabovi */
+        .nav-tabs .nav-link { color: #adb5bd; }
+        .nav-tabs .nav-link.active { 
+            font-weight: bold; 
+            background-color: #2b3035; 
+            border-color: #495057 #495057 #2b3035; 
+            color: #0d6efd; 
+        }
+        .nav-tabs { border-bottom: 1px solid #495057; }
 
         .form-check-input:checked { background-color: #0d6efd; border-color: #0d6efd; }
+        
+        input[readonly] { background-color: #212529 !important; border-color: #495057; }
     </style>
 </head>
 <body>
 
 <!-- Navbar -->
-<nav class="navbar navbar-light bg-white border-bottom px-3 py-2 shadow-sm d-flex justify-content-between align-items-center">
-    <!-- Lijevo: Tabovi -->
+<nav class="navbar navbar-dark bg-dark border-bottom border-secondary px-3 py-2 shadow-sm d-flex justify-content-between align-items-center">
     <ul class="nav nav-tabs border-0" id="myTab" role="tablist">
         <li class="nav-item">
-            <button class="nav-link active border-0" id="tour-tab" onclick="switchMode('tour')">📅 Turneja</button>
+            <button class="nav-link active border-0" id="tour-tab" onclick="switchMode('tour')">Prikaz turneja</button>
         </li>
         <li class="nav-item">
-            <button class="nav-link border-0" id="add-tab" onclick="switchMode('add')">➕ Unos</button>
+            <button class="nav-link border-0" id="add-tab" onclick="switchMode('add')">Unos gaže</button>
         </li>
     </ul>
     
-    <!-- Sredina: Novi Gumbi -->
     <div>
-        <button class="btn btn-outline-warning btn-sm fw-bold me-2" onclick="showTopList()">🏆 Top Klubovi</button>
-        <button class="btn btn-outline-danger btn-sm fw-bold" onclick="lockMonth()">🔒 Zaključaj Mjesec</button>
+        <button class="btn btn-outline-warning btn-sm fw-bold me-2" onclick="showTopList()">Top Klubovi</button>
+        <button class="btn btn-outline-danger btn-sm fw-bold" onclick="lockMonth()">Zaključaj Mjesec</button>
     </div>
 
-    <!-- Desno: Toggle -->
     <div class="form-check form-switch ms-3">
         <input class="form-check-input" type="checkbox" id="regionToggle" checked onchange="toggleRegions()">
-        <label class="form-check-label small fw-bold text-muted" for="regionToggle">Županije</label>
+        <label class="form-check-label small fw-bold text-light" for="regionToggle">Županije</label>
     </div>
 </nav>
 
@@ -62,94 +98,92 @@
     <!-- SIDEBAR -->
     <div class="sidebar shadow">
         
-        <!-- POGLED 1: TURNEJA -->
+        <!-- Turneje -->
         <div id="tour-view">
             <h5 class="mb-3 fw-bold text-primary">Analiza Turneje</h5>
-            <select id="monthSelect" class="form-select mb-3 shadow-sm"></select>
+            <select id="monthSelect" class="form-select mb-3 shadow-sm bg-dark text-light border-secondary"></select>
             
-            <div class="card p-3 mb-3 bg-white border-primary border-start border-4">
+            <div class="card p-3 mb-3 bg-dark text-light border-primary border-start border-4">
                 <div class="d-flex justify-content-between"><span>Broj gaža:</span> <strong id="sCount">0</strong></div>
                 <div class="d-flex justify-content-between"><span>Profit:</span> <strong id="sProfit" class="text-success">0 €</strong></div>
-                <hr class="my-2">
+                <hr class="my-2 border-secondary">
                 <div class="d-flex justify-content-between"><span>Ukupni put:</span> <strong id="sKm">0 km</strong></div>
             </div>
             
-            <h6 class="border-bottom pb-2 mb-2">Lista nastupa</h6>
-            <div class="list-group list-group-flush small" id="gigList">
-                <!-- Lista se puni javascriptom -->
-            </div>
+            <h6 class="border-bottom border-secondary pb-2 mb-2">Lista nastupa</h6>
+            <div class="list-group list-group-flush small" id="gigList"></div>
         </div>
 
-        <!-- POGLED 2: UNOS -->
+        <!-- Unos -->
         <div id="add-view" style="display: none;">
             <h5 class="mb-3 fw-bold text-success">Baza & Unos</h5>
-            <div class="alert alert-info small py-2 mb-3">
+            <div class="alert alert-info small py-2 mb-3 bg-dark text-info border-info">
                 Klikni na <strong>sivi marker</strong> (postojeći) ili <strong>prazno</strong> (novi).
             </div>
             
-            <form id="addForm" class="card p-3 shadow-sm border-0">
+            <form id="addForm" class="card p-3 shadow-sm border-secondary bg-dark text-light">
                 <input type="hidden" id="inKlubId"> 
                 
-                <h6 class="border-bottom pb-2 mb-3">📍 Klub</h6>
+                <h6 class="border-bottom border-secondary pb-2 mb-3">Klub</h6>
                 <div class="mb-2">
                     <label class="small fw-bold">Naziv</label>
-                    <input type="text" id="inNaziv" class="form-control form-control-sm" required>
+                    <input type="text" id="inNaziv" class="form-control form-control-sm bg-dark text-light border-secondary" required>
                 </div>
                 <div class="mb-2">
                     <label class="small">Adresa</label>
-                    <input type="text" id="inAdresa" class="form-control form-control-sm">
+                    <input type="text" id="inAdresa" class="form-control form-control-sm bg-dark text-light border-secondary">
                 </div>
                 <div class="row g-2 mb-2">
-                    <div class="col-6"><input type="text" id="inLat" class="form-control form-control-sm bg-light" readonly></div>
-                    <div class="col-6"><input type="text" id="inLon" class="form-control form-control-sm bg-light" readonly></div>
+                    <div class="col-6"><input type="text" id="inLat" class="form-control form-control-sm" readonly></div>
+                    <div class="col-6"><input type="text" id="inLon" class="form-control form-control-sm" readonly></div>
                 </div>
 
-                <h6 class="border-bottom pb-2 mt-3 mb-3">💰 Gaža</h6>
+                <h6 class="border-bottom border-secondary pb-2 mt-3 mb-3">Gaža</h6>
                 <div class="mb-2">
                     <label class="small fw-bold">Datum</label>
-                    <input type="date" id="inDatum" class="form-control form-control-sm" required>
+                    <input type="date" id="inDatum" class="form-control form-control-sm bg-dark text-light border-secondary" required>
                 </div>
                 <div class="row g-2 mb-2">
-                    <div class="col-6"><label class="small">Honorar</label><input type="number" id="inHonorar" class="form-control form-control-sm" value="0"></div>
-                    <div class="col-6"><label class="small">Trošak</label><input type="number" id="inTrosak" class="form-control form-control-sm" value="0"></div>
+                    <div class="col-6"><label class="small">Honorar</label><input type="number" id="inHonorar" class="form-control form-control-sm bg-dark text-light border-secondary" value="0"></div>
+                    <div class="col-6"><label class="small">Trošak</label><input type="number" id="inTrosak" class="form-control form-control-sm bg-dark text-light border-secondary" value="0"></div>
                 </div>
                 <div class="mb-3">
                     <label class="small">Tip</label>
-                    <select id="inKat" class="form-select form-select-sm">
+                    <select id="inKat" class="form-select form-select-sm bg-dark text-light border-secondary">
                         <option value="1">Klub</option><option value="2">Festival</option><option value="3">Bar</option><option value="4">Vjenčanje</option>
                     </select>
                 </div>
                 
-                <button type="submit" class="btn btn-success w-100 fw-bold">💾 SPREMI</button>
+                <button type="submit" class="btn btn-success w-100 fw-bold">Spremi</button>
                 <button type="button" onclick="resetForm()" class="btn btn-outline-secondary w-100 mt-2 btn-sm">Očisti</button>
             </form>
         </div>
     </div>
 
-    <!-- MAPA -->
+    <!-- karta -->
     <div id="map"></div>
 </div>
 
-<!-- MODAL: EDIT GAŽE -->
+<!-- Uređivanje gaža -->
 <div class="modal fade" id="editModal" tabindex="-1">
     <div class="modal-dialog modal-sm">
-        <div class="modal-content">
-            <div class="modal-header"><h6 class="modal-title">✏️ Uredi Gažu</h6><button class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-content bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary"><h6 class="modal-title">✏️ Uredi Gažu</h6><button class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
             <div class="modal-body">
                 <input type="hidden" id="editId">
-                <div class="mb-2"><label class="small fw-bold">Novi Honorar</label><input type="number" id="editHonorar" class="form-control"></div>
-                <div class="mb-2"><label class="small fw-bold">Novi Trošak</label><input type="number" id="editTrosak" class="form-control"></div>
+                <div class="mb-2"><label class="small fw-bold">Novi Honorar</label><input type="number" id="editHonorar" class="form-control bg-dark text-light border-secondary"></div>
+                <div class="mb-2"><label class="small fw-bold">Novi Trošak</label><input type="number" id="editTrosak" class="form-control bg-dark text-light border-secondary"></div>
                 <button onclick="saveEdit()" class="btn btn-primary w-100">Ažuriraj</button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- MODAL: TOP LISTA -->
+<!-- Top lista -->
 <div class="modal fade" id="topModal" tabindex="-1">
     <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header"><h5 class="modal-title">🏆 Top 5 Klubova</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-content bg-dark text-light border-secondary">
+            <div class="modal-header border-secondary"><h5 class="modal-title">Top 5 Klubova</h5><button class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
             <div class="modal-body">
                 <ul class="list-group list-group-flush" id="topList"></ul>
             </div>
@@ -157,17 +191,14 @@
     </div>
 </div>
 
-<!-- SKRIPTE -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
 
 <script>
-    // 1. INICIJALIZACIJA
     var map = L.map('map').setView([44.5, 16.0], 7);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    // Layeri
     var regionLayer = L.layerGroup().addTo(map);
     var tourLayer = L.layerGroup().addTo(map);
     var routeLayer = L.layerGroup().addTo(map);
@@ -178,24 +209,20 @@
     var editModal = new bootstrap.Modal(document.getElementById('editModal'));
     var topModal = new bootstrap.Modal(document.getElementById('topModal'));
 
-    // Pokretanje
     loadRegions(); 
     loadMonths();
 
-    // 2. LOGIKA
     function loadRegions() {
         fetch('/api/regions').then(r => r.json()).then(data => {
             L.geoJSON(data, {
                 style: { color: '#3388ff', weight: 1, fillColor: '#3388ff', fillOpacity: 0.1 },
-                onEachFeature: (f, l) => l.bindTooltip(f.properties.naziv, {permanent: false, direction: "center", className: "text-primary fw-bold bg-white border-0"})
+                onEachFeature: (f, l) => l.bindTooltip(f.properties.naziv, {permanent: false, direction: "center", className: "text-primary fw-bold bg-dark border-secondary"})
             }).addTo(regionLayer);
         });
     }
 
-     // Toggle funkcija
-    function toggleRegions() { 
-        if(document.getElementById('regionToggle').checked) map.addLayer(regionLayer); 
-        else map.removeLayer(regionLayer); 
+    function toggleRegions() {
+        if(document.getElementById('regionToggle').checked) map.addLayer(regionLayer); else map.removeLayer(regionLayer);
     }
 
     function switchMode(mode) {
@@ -212,86 +239,58 @@
     }
 
     function loadTourData() {
-        const m = document.getElementById('monthSelect').value; 
-        if(!m) return;
-        
-        tourLayer.clearLayers(); 
-        routeLayer.clearLayers();
+        const m = document.getElementById('monthSelect').value; if(!m) return;
+        tourLayer.clearLayers(); routeLayer.clearLayers();
 
-        // 1. Statistika
         fetch(`/api/stats?month=${m}`).then(r=>r.json()).then(s => {
             document.getElementById('sCount').innerText = s.broj;
             document.getElementById('sProfit').innerText = s.profit.toFixed(2) + ' €';
             document.getElementById('sKm').innerText = s.km + ' km';
         });
 
-        // 2. Gaže (Markeri i Lista)
         fetch(`/api/gigs?month=${m}`).then(r=>r.json()).then(data => {
-            const list = document.getElementById('gigList'); 
-            list.innerHTML = ''; // Očisti listu
+            const list = document.getElementById('gigList'); list.innerHTML = '';
             
             L.geoJSON(data, {
                 pointToLayer: (f, ll) => L.circleMarker(ll, {
                     radius: 8, fillColor: f.properties.boja, color: '#fff', weight: 2, fillOpacity: 1
                 }),
                 onEachFeature: (f, l) => {
-                    // Logika: Je li zaključano?
-                    let actionBtn = '';
-                    if (f.properties.locked) {
-                        actionBtn = '<span class="badge bg-secondary w-100 mt-2">🔒 Zaključano</span>';
-                    } else {
-                        // Gumb za Popup na mapi
-                        actionBtn = `<button class="btn btn-sm btn-outline-primary mt-2 w-100" 
-                                     onclick="openEdit(${f.properties.id}, ${f.properties.honorar}, ${f.properties.troskovi})">
-                                     ✏️ Uredi Financije
-                                     </button>`;
-                    }
+                    let btn = f.properties.locked 
+                        ? '<span class="badge bg-secondary w-100 mt-2">🔒 Zaključano</span>' 
+                        : `<button class="btn btn-sm btn-outline-primary mt-2 w-100" onclick="openEdit(${f.properties.id}, ${f.properties.honorar}, ${f.properties.troskovi})">✏️ Uredi</button>`;
 
-                    // Sadržaj Popupa
                     const popupContent = `
                         <div class="text-center">
                             <strong>${f.properties.naziv}</strong><br>
-                            <span class="text-muted small">${f.properties.datum}</span><br>
-                            <hr class="my-1">
+                            <span class="text-light small">${f.properties.datum}</span><br>
+                            <hr class="my-1 border-secondary">
                             Honorar: <b>${f.properties.honorar} €</b><br>
                             Trošak: <b>${f.properties.troskovi} €</b>
-                            ${actionBtn}
+                            ${btn}
                         </div>`;
                     
                     l.bindPopup(popupContent);
 
-                    // --- GENERIRANJE LISTE LIJEVO ---
-                    
-                    // Gumb za listu (mali edit gumb) - koristimo event.stopPropagation da ne triggeramo zoom kad kliknemo edit
                     let listEditBtn = f.properties.locked 
                         ? '<span title="Zaključano">🔒</span>' 
-                        : `<button class="btn btn-sm btn-light border" title="Uredi" 
-                            onclick="event.stopPropagation(); openEdit(${f.properties.id}, ${f.properties.honorar}, ${f.properties.troskovi})">✏️</button>`;
+                        : `<button class="btn btn-sm btn-dark border-secondary border py-0 px-1" title="Uredi" onclick="event.stopPropagation(); openEdit(${f.properties.id}, ${f.properties.honorar}, ${f.properties.troskovi})">✏️</button>`;
 
-                    const profit = (f.properties.honorar - f.properties.troskovi).toFixed(0);
-
-                    // Dodajemo u sidebar listu
                     list.innerHTML += `
-                        <div class="list-group-item list-group-item-action py-2" style="cursor: pointer;" onclick="zoomTo(${l.getLatLng().lat}, ${l.getLatLng().lng})">
+                        <div class="list-group-item list-group-item-action bg-dark text-light border-secondary py-2" style="cursor: pointer;" onclick="zoomTo(${l.getLatLng().lat}, ${l.getLatLng().lng})">
                             <div class="d-flex w-100 justify-content-between align-items-center">
-                                <div>
-                                    <h6 class="mb-0 fw-bold" style="color:${f.properties.boja}">${f.properties.naziv}</h6>
-                                    <small class="text-muted">${f.properties.datum}</small>
-                                </div>
-                                <div class="text-end">
-                                    <span class="fw-bold text-success d-block">${profit} €</span>
-                                    ${listEditBtn}
-                                </div>
+                                <div><h6 class="mb-0 fw-bold" style="color:${f.properties.boja}">${f.properties.naziv}</h6><small class="text-muted">${f.properties.datum}</small></div>
+                                <div class="text-end"><span class="fw-bold text-success d-block">${(f.properties.honorar - f.properties.troskovi).toFixed(0)} €</span>${listEditBtn}</div>
                             </div>
                         </div>`;
                 }
             }).addTo(tourLayer);
         });
 
-        // 3. Ruta
         fetch(`/api/route?month=${m}`).then(r=>r.json()).then(d => {
             if(d.geometry) {
-                L.geoJSON(d, {style: {color:'black', dashArray:'5,10', weight: 3}}).addTo(routeLayer);
+                // Ruta crna (ili tamno siva) jer je mapa svijetla
+                L.geoJSON(d, {style: {color:'#333', dashArray:'5,10', weight: 3}}).addTo(routeLayer);
                 const bounds = L.geoJSON(d).getBounds();
                 if(bounds.isValid()) map.fitBounds(bounds, {padding: [50, 50]});
             }
@@ -311,7 +310,6 @@
         });
     }
 
-    // 3. EDIT & MODAL LOGIKA
     window.openEdit = (id, h, t) => { 
         document.getElementById('editId').value = id; 
         document.getElementById('editHonorar').value = h; 
@@ -331,7 +329,7 @@
     window.showTopList = () => {
         fetch('/api/top').then(r=>r.json()).then(d => {
             const l = document.getElementById('topList'); l.innerHTML = '';
-            d.forEach((k, i) => l.innerHTML += `<li class="list-group-item d-flex justify-content-between align-items-center"><span>${i+1}. <strong>${k.naziv}</strong> <small class="text-muted">(${k.regija})</small></span> <span class="badge bg-primary rounded-pill">${k.profit} €</span></li>`);
+            d.forEach((k, i) => l.innerHTML += `<li class="list-group-item bg-dark text-light border-secondary d-flex justify-content-between align-items-center"><span>${i+1}. <strong>${k.naziv}</strong> <small class="text-muted">(${k.regija})</small></span> <span class="badge bg-primary rounded-pill">${k.profit} €</span></li>`);
             topModal.show();
         });
     };
@@ -344,7 +342,6 @@
         }
     };
 
-    // Helperi
     map.on('click', e => { if(currentMode==='add') fillForm(null, e.latlng); });
     function zoomTo(lat, lon) { map.setView([lat, lon], 12); }
     function fillForm(p, ll) {
