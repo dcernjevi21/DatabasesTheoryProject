@@ -1,6 +1,6 @@
 
 -- ==========================================
--- 2. FUNKCIJE
+-- FUNKCIJE
 -- ==========================================
 
 -- Profit
@@ -26,11 +26,21 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- mjesecna ruta
+CREATE OR REPLACE FUNCTION get_monthly_route(mjesec VARCHAR) RETURNS JSON AS $$
+DECLARE geo JSON;
+BEGIN
+    SELECT ST_AsGeoJSON(ST_MakeLine(k.geom ORDER BY g.datum_nastupa))::json INTO geo
+    FROM gaza g JOIN klub k ON g.klub_id = k.id WHERE to_char(g.datum_nastupa, 'YYYY-MM') = mjesec;
+    RETURN geo;
+END;
+$$ LANGUAGE plpgsql;
+
 -- ==========================================
--- 3. TRIGGERI (OKIDAČI)
+-- TRIGGERI
 -- ==========================================
 
--- A) Automatska regija za klub
+-- automatska regija za klub
 CREATE OR REPLACE FUNCTION trg_klub_regija() RETURNS TRIGGER AS $$
 DECLARE r RECORD;
 BEGIN
@@ -45,7 +55,7 @@ END;
 $$ LANGUAGE plpgsql;
 CREATE TRIGGER trg_klub_insert BEFORE INSERT OR UPDATE ON klub FOR EACH ROW EXECUTE FUNCTION trg_klub_regija();
 
--- B) Audit Log (Bilježi promjenu honorara)
+-- bilježenje izmjena honorara
 CREATE OR REPLACE FUNCTION trg_audit_honorar_func() RETURNS TRIGGER AS $$
 BEGIN
     IF OLD.honorar <> NEW.honorar THEN
@@ -57,7 +67,7 @@ END;
 $$ LANGUAGE plpgsql;
 CREATE TRIGGER trg_audit_honorar AFTER UPDATE ON gaza FOR EACH ROW EXECUTE FUNCTION trg_audit_honorar_func();
 
--- C) Zabrana izmjene zaključanih gaža
+-- zabrana izmjene zaključanih gaža
 CREATE OR REPLACE FUNCTION trg_check_locked() RETURNS TRIGGER AS $$
 BEGIN
     IF OLD.zakljucano = TRUE AND (NEW.zakljucano = TRUE) THEN -- Dozvoli samo otključavanje adminu, ali ne izmjenu podataka
@@ -69,10 +79,10 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER trg_prevent_update BEFORE UPDATE ON gaza FOR EACH ROW WHEN (OLD.zakljucano IS TRUE) EXECUTE FUNCTION trg_check_locked();
 
 -- ==========================================
--- 4. PROCEDURE
+-- PROCEDURE
 -- ==========================================
 
--- Procedura: ZAKLJUČAJ MJESEC (Financijsko zatvaranje)
+-- zaključavanje mjeseca
 CREATE OR REPLACE PROCEDURE zakljucaj_mjesec(mjesec_str VARCHAR)
 LANGUAGE plpgsql AS $$
 BEGIN
@@ -83,10 +93,10 @@ END;
 $$;
 
 -- ==========================================
--- 5. POGLEDI
+-- POGLEDI
 -- ==========================================
 
--- View: Statistika
+-- mjesecna statistika
 CREATE OR REPLACE VIEW view_statistika_mjesec AS
 SELECT 
     to_char(g.datum_nastupa, 'YYYY-MM') as id_mjeseca,
@@ -97,7 +107,7 @@ SELECT
 FROM gaza g
 GROUP BY to_char(g.datum_nastupa, 'YYYY-MM');
 
--- View: Top Klubovi (Za modal)
+-- top klubovi
 CREATE OR REPLACE VIEW view_top_klubovi AS
 SELECT 
     k.naziv,
@@ -110,25 +120,16 @@ LEFT JOIN regija r ON k.regija_id = r.id
 GROUP BY k.id, k.naziv, r.naziv
 ORDER BY ukupni_profit DESC;
 
--- View: Mjeseci
+-- dostupni mjeseci
 CREATE OR REPLACE VIEW view_dostupni_mjeseci AS
 SELECT DISTINCT to_char(datum_nastupa, 'YYYY-MM') as id, to_char(datum_nastupa, 'TMMonth YYYY') as naziv 
 FROM gaza ORDER BY id DESC;
 
--- Funkcija za rutu
-CREATE OR REPLACE FUNCTION get_monthly_route(mjesec VARCHAR) RETURNS JSON AS $$
-DECLARE geo JSON;
-BEGIN
-    SELECT ST_AsGeoJSON(ST_MakeLine(k.geom ORDER BY g.datum_nastupa))::json INTO geo
-    FROM gaza g JOIN klub k ON g.klub_id = k.id WHERE to_char(g.datum_nastupa, 'YYYY-MM') = mjesec;
-    RETURN geo;
-END;
-$$ LANGUAGE plpgsql;
 
--- 4. SEED DATA
+-- ==========================================
+-- SEED PODATAKA
+-- ==========================================
 INSERT INTO kategorija (naziv, boja) VALUES ('Klub', '#e74c3c'), ('Festival', '#9b59b6'), ('Bar', '#3498db'), ('Privatni event', '#');
-
--- Unosimo KLUBOVE (Samo jednom!)
 
 INSERT INTO klub (naziv, adresa, geom) VALUES
 ('Boogaloo', 'Zagreb', ST_SetSRID(ST_MakePoint(15.968, 45.800), 4326)),
@@ -146,7 +147,7 @@ INSERT INTO klub (naziv, adresa, geom) VALUES
 ('Papaya', 'Zrće', ST_SetSRID(ST_MakePoint(14.890, 44.540), 4326)),
 ('Opera', 'Zadar', ST_SetSRID(ST_MakePoint(15.230, 44.110), 4326));
 
--- 3. UNOS SVIH HRVATSKIH ŽUPANIJA (Aproksimirane granice)
+-- UNOS SVIH HRVATSKIH ŽUPANIJA (aproksimirane granice)
 -- Koristimo ST_GeomFromText s POLYGON-ima koji prate oblik HR
 
 -- --- SJEVER I SREDIŠNJA HRVATSKA ---
@@ -182,7 +183,6 @@ INSERT INTO regija (naziv, geom) VALUES
 ('Splitsko-dalmatinska', ST_GeomFromText('POLYGON((16.0 44.0, 17.3 44.0, 17.3 43.0, 16.0 43.0, 16.0 44.0))', 4326)),
 ('Dubrovačko-neretvanska', ST_GeomFromText('POLYGON((17.3 43.1, 18.6 43.1, 18.6 42.3, 17.3 42.3, 17.3 43.1))', 4326));
 
--- 4. VRAĆANJE GAŽA (2025)
 INSERT INTO gaza (klub_id, kategorija_id, datum_nastupa, honorar, troskovi, opis) VALUES
 (1, 1, '2025-05-02', 600.00, 20.00, 'Boogaloo'), (3, 3, '2025-05-03', 350.00, 30.00, 'Samobor'), (4, 1, '2025-05-09', 500.00, 150.00, 'Osijek'), (5, 1, '2025-05-10', 450.00, 20.00, 'Epic'), (2, 1, '2025-05-23', 800.00, 30.00, 'Peti Kupe'), (1, 1, '2025-05-30', 600.00, 20.00, 'ZG Close'),
 (6, 1, '2025-06-06', 550.00, 100.00, 'Rijeka'), (7, 2, '2025-06-07', 400.00, 50.00, 'Pula'), (8, 1, '2025-06-14', 900.00, 120.00, 'Rovinj'), (8, 4, '2025-06-15', 1200.00, 0.00, 'Vjenčanje'), (6, 1, '2025-06-20', 600.00, 100.00, 'Rijeka'), (7, 3, '2025-06-21', 300.00, 30.00, 'Pula Beach'),

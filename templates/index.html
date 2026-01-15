@@ -192,8 +192,10 @@
         });
     }
 
-    function toggleRegions() {
-        if(document.getElementById('regionToggle').checked) map.addLayer(regionLayer); else map.removeLayer(regionLayer);
+     // Toggle funkcija
+    function toggleRegions() { 
+        if(document.getElementById('regionToggle').checked) map.addLayer(regionLayer); 
+        else map.removeLayer(regionLayer); 
     }
 
     function switchMode(mode) {
