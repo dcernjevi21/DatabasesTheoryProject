@@ -1,7 +1,7 @@
 # DJ Tour Manager
 
-Link na dokumentaciju: https://github.com/dcernjevi21/DatabasesTheoryProject/blob/main/dokumentacija/dokumentacija.odt
-
+Link na dokumentaciju: [https://github.com/dcernjevi21/DatabasesTheoryProject/blob/main/dokumentacija/dokumentacija.odt
+](https://github.com/dcernjevi21/DatabasesTheoryProject/blob/main/dokumentacija/DokumentacijaLaTex.pdf)
 ## Upute za pokretanje
 
 Izvršite redom sljedeće komande u terminalu:
