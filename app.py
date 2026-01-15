@@ -42,13 +42,22 @@ def get_regions():
         
         features = []
         for row in result:
+            geometry = json.loads(row.geom)
+            
             features.append({
                 "type": "Feature",
-                "geometry": json.loads(row.geom),
-                "properties": { "naziv": row.naziv }
+                "geometry": geometry,
+                "properties": { 
+                    "naziv": row.naziv 
+                }
             })
-        return jsonify({"type": "FeatureCollection", "features": features})
+            
+        return jsonify({
+            "type": "FeatureCollection", 
+            "features": features
+        })
     except Exception as e:
+        print(f"Greška u get_regions: {e}")
         return jsonify({"error": str(e)}), 500
 
 # Ruta za dohvat statistike

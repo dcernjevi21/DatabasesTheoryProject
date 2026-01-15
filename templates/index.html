@@ -2,7 +2,7 @@
 <html lang="hr" data-bs-theme="dark">
 <head>
     <meta charset="UTF-8">
-    <title>DJ Tour Manager Pro</title>
+    <title>DJ Tour Manager</title>
     
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -95,7 +95,6 @@
 </nav>
 
 <div class="main-container">
-    <!-- SIDEBAR -->
     <div class="sidebar shadow">
         
         <!-- Turneje -->
@@ -204,6 +203,10 @@
     var routeLayer = L.layerGroup().addTo(map);
     var clubCluster = L.markerClusterGroup({ showCoverageOnHover: false, zoomToBoundsOnClick: true, spiderfyOnMaxZoom: true }).addTo(map);
 
+    regionLayer.setZIndex(1);
+    routeLayer.setZIndex(2);
+    tourLayer.setZIndex(3);
+
     var tempMarker = null;
     var currentMode = 'tour'; 
     var editModal = new bootstrap.Modal(document.getElementById('editModal'));
@@ -213,13 +216,45 @@
     loadMonths();
 
     function loadRegions() {
-        fetch('/api/regions').then(r => r.json()).then(data => {
+    console.log("🗺️ Učitavam županije...");
+    
+    fetch('/api/regions')
+        .then(r => {
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+            return r.json();
+        })
+        .then(data => {
+            console.log(`Učitano ${data.features ? data.features.length : 0} županija`);
+            
+            if (!data.features || data.features.length === 0) {
+                console.warn("Nema županija za prikaz!");
+                return;
+            }
+            
             L.geoJSON(data, {
-                style: { color: '#3388ff', weight: 1, fillColor: '#3388ff', fillOpacity: 0.1 },
-                onEachFeature: (f, l) => l.bindTooltip(f.properties.naziv, {permanent: false, direction: "center", className: "text-primary fw-bold bg-dark border-secondary"})
+                style: { 
+                    color: '#3388ff',
+                        weight: 1.5,     
+                        fillColor: '#3388ff', 
+                        fillOpacity: 0.09 
+                },
+                onEachFeature: (f, l) => {
+                    l.bindTooltip(f.properties.naziv, {
+                        permanent: false, 
+                        direction: "center", 
+                        className: "text-primary fw-bold bg-dark border-secondary"
+                    });
+                    
+                    console.log(`Dodajem županiju: ${f.properties.naziv}`);
+                }
             }).addTo(regionLayer);
+            
+            console.log("Županije dodane na kartu!");
+        })
+        .catch(err => {
+            console.error("Greška pri učitavanju županija:", err);
         });
-    }
+}
 
     function toggleRegions() {
         if(document.getElementById('regionToggle').checked) map.addLayer(regionLayer); else map.removeLayer(regionLayer);
@@ -257,7 +292,7 @@
                 }),
                 onEachFeature: (f, l) => {
                     let btn = f.properties.locked 
-                        ? '<span class="badge bg-secondary w-100 mt-2">🔒 Zaključano</span>' 
+                        ? '<span class="badge bg-secondary w-100 mt-2">Zaključano</span>' 
                         : `<button class="btn btn-sm btn-outline-primary mt-2 w-100" onclick="openEdit(${f.properties.id}, ${f.properties.honorar}, ${f.properties.troskovi})">✏️ Uredi</button>`;
 
                     const popupContent = `
@@ -289,7 +324,6 @@
 
         fetch(`/api/route?month=${m}`).then(r=>r.json()).then(d => {
             if(d.geometry) {
-                // Ruta crna (ili tamno siva) jer je mapa svijetla
                 L.geoJSON(d, {style: {color:'#333', dashArray:'5,10', weight: 3}}).addTo(routeLayer);
                 const bounds = L.geoJSON(d).getBounds();
                 if(bounds.isValid()) map.fitBounds(bounds, {padding: [50, 50]});
